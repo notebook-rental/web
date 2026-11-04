@@ -1,0 +1,72 @@
+import type { ApiClient } from './client';
+import type {
+  Device,
+  DeviceCreate,
+  DeviceModel,
+  Finding,
+  Inspection,
+  InspectionKind,
+  ManualFinding,
+  PhotoUploaded,
+  QrBatch,
+  ScanResult,
+  TokenPair,
+  Verdict,
+} from './types';
+
+/** 화면에서 쓰는 업무 API 목록. 경로는 openapi.yaml과 같다(기준 경로 /api/v1). */
+export function createEndpoints(api: ApiClient) {
+  const enc = encodeURIComponent;
+  return {
+    login: (loginId: string, password: string) =>
+      api.request<TokenPair>('POST', '/auth/login', { json: { loginId, password }, anonymous: true }),
+    refresh: (refreshToken: string) =>
+      api.request<TokenPair>('POST', '/auth/refresh', { json: { refreshToken }, anonymous: true }),
+    logout: () => api.request<null>('POST', '/auth/logout'),
+
+    scan: (qrValue: string) => api.request<ScanResult>('GET', `/scan/${enc(qrValue)}`),
+    findByAsset: (assetNo: string) => api.request<ScanResult>('GET', `/devices/by-asset/${enc(assetNo)}`),
+
+    listDeviceModels: () => api.list<DeviceModel>('/device-models'),
+    createDevice: (body: DeviceCreate) => api.request<Device>('POST', '/devices', { json: body }),
+    replaceQr: (deviceId: number, qrValue: string) =>
+      api.request<Device>('PUT', `/devices/${deviceId}/qr`, { json: { qrValue } }),
+    createRental: (deviceId: number, customerRef: string) =>
+      api.request<{ id: number }>('POST', '/rentals', { json: { deviceId, customerRef } }),
+
+    createQrBatch: (count: number) => api.request<QrBatch>('POST', '/qr-batches', { json: { count } }),
+    qrBatchPdf: (batchId: number) => api.blob(`/qr-batches/${batchId}/labels.pdf`),
+    voidQr: (qrValue: string) => api.request<null>('POST', `/qr-tags/${enc(qrValue)}/void`),
+
+    createInspection: (body: {
+      rentalId: number;
+      kind: InspectionKind;
+      identifiedBy: 'qr' | 'manual';
+      scannedQrValue?: string;
+    }) => api.request<Inspection>('POST', '/inspections', { json: body }),
+    getInspection: (id: number) => api.request<Inspection>('GET', `/inspections/${id}`),
+    uploadPhoto: (
+      inspectionId: number,
+      input: { shotType: string; image: Blob; originalSha256: string; decodedQrValues?: string[] },
+    ) => {
+      const form = new FormData();
+      form.append('shotType', input.shotType);
+      form.append('image', input.image, `${input.shotType}.jpg`);
+      form.append('originalSha256', input.originalSha256);
+      if (input.decodedQrValues?.length) form.append('decodedQrValues', input.decodedQrValues.join(','));
+      return api.request<PhotoUploaded>('POST', `/inspections/${inspectionId}/photos`, { form });
+    },
+    confirmOriginal: (inspectionId: number, photoId: number) =>
+      api.request<null>('POST', `/inspections/${inspectionId}/photos/${photoId}/original`),
+    submitInspection: (id: number) => api.request<null>('POST', `/inspections/${id}/submit`),
+
+    listFindings: (inspectionId: number) => api.list<Finding>(`/inspections/${inspectionId}/findings`),
+    addManualFinding: (inspectionId: number, body: ManualFinding) =>
+      api.request<Finding>('POST', `/inspections/${inspectionId}/findings`, { json: body }),
+    setVerdict: (findingId: number, body: Verdict) =>
+      api.request<Finding>('PUT', `/findings/${findingId}/verdict`, { json: body }),
+    completeInspection: (id: number) => api.request<Inspection>('POST', `/inspections/${id}/complete`),
+  };
+}
+
+export type Endpoints = ReturnType<typeof createEndpoints>;

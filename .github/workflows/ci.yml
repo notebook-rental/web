@@ -1,0 +1,43 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 형식 검사(Prettier)
+        run: npm run format:check
+      - name: 린트(ESLint)
+        run: npm run lint -- --max-warnings=0
+      - name: 타입 검사
+        run: npm run typecheck
+      - name: 단위 테스트 + 커버리지(80% 미만이면 실패)
+        run: npm run test:coverage
+      - name: 빌드
+        run: npm run build
+      - name: Playwright 브라우저 설치
+        run: npx playwright install --with-deps chromium
+      - name: E2E(모바일 뷰포트)
+        run: npm run e2e
+      - name: 결과 보관
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            coverage/
+            playwright-report/
+          retention-days: 7
