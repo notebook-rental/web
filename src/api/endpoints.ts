@@ -3,6 +3,8 @@ import type {
   Device,
   DeviceCreate,
   DeviceModel,
+  DeviceModelCreate,
+  DeviceSummary,
   Finding,
   Inspection,
   InspectionKind,
@@ -28,6 +30,15 @@ export function createEndpoints(api: ApiClient) {
     findByAsset: (assetNo: string) => api.request<ScanResult>('GET', `/devices/by-asset/${enc(assetNo)}`),
 
     listDeviceModels: () => api.list<DeviceModel>('/device-models'),
+    createDeviceModel: (body: DeviceModelCreate) =>
+      api.request<DeviceModel>('POST', '/device-models', { json: body }),
+    listDevices: (query: { q?: string; page?: number; size?: number } = {}) => {
+      const params = new URLSearchParams();
+      if (query.q) params.set('q', query.q);
+      params.set('page', String(query.page ?? 0));
+      params.set('size', String(query.size ?? 20));
+      return api.list<DeviceSummary>(`/devices?${params.toString()}`);
+    },
     createDevice: (body: DeviceCreate) => api.request<Device>('POST', '/devices', { json: body }),
     replaceQr: (deviceId: number, qrValue: string) =>
       api.request<Device>('PUT', `/devices/${deviceId}/qr`, { json: { qrValue } }),
@@ -35,6 +46,7 @@ export function createEndpoints(api: ApiClient) {
       api.request<{ id: number }>('POST', '/rentals', { json: { deviceId, customerRef } }),
 
     createQrBatch: (count: number) => api.request<QrBatch>('POST', '/qr-batches', { json: { count } }),
+    listQrBatches: (page = 0, size = 20) => api.list<QrBatch>(`/qr-batches?page=${page}&size=${size}`),
     qrBatchPdf: (batchId: number) => api.blob(`/qr-batches/${batchId}/labels.pdf`),
     voidQr: (qrValue: string) => api.request<null>('POST', `/qr-tags/${enc(qrValue)}/void`),
 

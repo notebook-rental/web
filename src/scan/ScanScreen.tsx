@@ -9,6 +9,7 @@ import type { BarcodeKind, Decoder } from './qrDecoder';
 import { goToScanResult } from './navigation';
 import { StableReader } from './stableReader';
 import { useBarcodeScanner } from './useBarcodeScanner';
+import { Icon } from '../shared/ui/Icon';
 
 const RETRY_COOLDOWN_MS = 3000;
 
@@ -88,8 +89,12 @@ export function ScanScreen({ decoderFactory }: { decoderFactory?: (k: BarcodeKin
     <section className="screen screen--camera">
       <CameraView ref={videoRef} stream={camera.stream}>
         <div className="scan-frame" aria-hidden="true" />
+        <div className="camera__label">
+          <Icon name="scan" size={16} />
+          노트북 QR 스캔
+        </div>
       </CameraView>
-      <div className="panel">
+      <div className="panel panel--sheet">
         {camera.error ? (
           <p className="alert alert--error" role="alert">
             {camera.error}
@@ -110,6 +115,7 @@ export function ScanScreen({ decoderFactory }: { decoderFactory?: (k: BarcodeKin
           </button>
         )}
         <Link to="/manual" className="btn btn--ghost">
+          <Icon name="keyboard" size={18} />
           QR이 안 읽혀요 · 자산 번호로 찾기
         </Link>
       </div>

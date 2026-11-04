@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { saveSession } from '../auth/tokenStore';
@@ -57,7 +57,7 @@ describe('App 라우팅과 로그인', () => {
     expect(screen.getByLabelText('아이디')).toHaveValue('admin');
     expect(screen.getByLabelText('비밀번호')).toHaveValue('admin');
     fireEvent.click(screen.getByRole('button', { name: '로그인' }));
-    expect(await screen.findByRole('link', { name: 'QR 출력' })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: '관리' })).toBeInTheDocument();
     expect(server.callsTo('POST', '/auth/login')[0].body).toEqual({ loginId: 'admin', password: 'admin' });
   });
 
@@ -77,13 +77,20 @@ describe('App 라우팅과 로그인', () => {
   it('직원은 관리자 화면을 볼 수 없고 메뉴에도 없다', async () => {
     renderApp('/admin/qr', createFakeServer());
     expect(await screen.findByText('관리자만 쓸 수 있는 화면입니다.')).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'QR 출력' })).toBeNull();
+    expect(screen.queryByRole('link', { name: '관리' })).toBeNull();
   });
 
-  it('관리자는 QR 출력 메뉴로 들어갈 수 있다', async () => {
+  it('관리자는 관리 메뉴에서 각 관리 화면으로 들어갈 수 있다', async () => {
     renderApp('/', createFakeServer(), adminSession);
-    fireEvent.click(await screen.findByRole('link', { name: 'QR 출력' }));
+    fireEvent.click(await screen.findByRole('link', { name: '관리' }));
+    expect(await screen.findByRole('heading', { name: '관리 홈' })).toBeInTheDocument();
+    const menu = screen.getByRole('navigation', { name: '관리 메뉴' });
+    fireEvent.click(within(menu).getByRole('link', { name: 'QR 스티커' }));
     expect(await screen.findByRole('heading', { name: 'QR 스티커 출력' })).toBeInTheDocument();
+    fireEvent.click(within(menu).getByRole('link', { name: '노트북' }));
+    expect(await screen.findByRole('heading', { name: '노트북' })).toBeInTheDocument();
+    fireEvent.click(within(menu).getByRole('link', { name: '모델·촬영 컷' }));
+    expect(await screen.findByRole('heading', { name: '모델·촬영 컷' })).toBeInTheDocument();
   });
 
   it('모르는 주소는 첫 화면으로 보내고, 로그아웃하면 로그인 화면으로 간다', async () => {

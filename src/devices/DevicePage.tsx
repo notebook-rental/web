@@ -1,18 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import type { DeviceStatus, ScanResult } from '../api/types';
+import type { ScanResult } from '../api/types';
 import { useServices } from '../app/services';
 import type { CaptureRequest } from '../capture/CaptureScreen';
 import { DAMAGE_TYPE_TEXT, SEVERITY_TEXT, shotGuide } from '../capture/shots';
 import type { DevicePageState } from '../scan/navigation';
-
-const STATUS_TEXT: Record<DeviceStatus, string> = {
-  available: '대여 가능',
-  rented: '대여 중',
-  inspecting: '검사 중',
-  repair: '수리 중',
-  retired: '폐기',
-};
+import { STATUS_TEXT } from './labels';
+import { Icon } from '../shared/ui/Icon';
 
 /**
  * 노트북 화면(FR-007). 스캔 결과 하나로 상태, 진행할 일, 기존 손상을 보여 주고
@@ -57,34 +51,47 @@ function DeviceView({ initial }: { initial: DevicePageState }) {
 
   return (
     <section className="screen">
-      <header className="device-head">
-        <h1>{device.assetNo}</h1>
-        <span className={`status status--${device.status}`}>
-          {STATUS_TEXT[device.status] ?? device.status}
-        </span>
-      </header>
-      <dl className="kv">
-        <dt>시리얼</dt>
-        <dd>{device.serialNo}</dd>
-        <dt>QR</dt>
-        <dd>{device.qrValue}</dd>
-        <dt>식별</dt>
-        <dd>{initial.identifiedBy === 'qr' ? 'QR 스캔' : '자산 번호 직접 입력'}</dd>
-      </dl>
+      <div className="card device-card">
+        <header className="device-head">
+          <span className="device-head__icon" aria-hidden="true">
+            <Icon name="laptop" size={26} />
+          </span>
+          <div>
+            {device.model && (
+              <p className="eyebrow">
+                {device.model.manufacturer} {device.model.name}
+              </p>
+            )}
+            <h1>{device.assetNo}</h1>
+          </div>
+          <span className={`status status--${device.status}`}>
+            {STATUS_TEXT[device.status] ?? device.status}
+          </span>
+        </header>
+        <dl className="kv">
+          <dt>시리얼</dt>
+          <dd>{device.serialNo}</dd>
+          <dt>QR</dt>
+          <dd className="mono">{device.qrValue}</dd>
+          <dt>식별</dt>
+          <dd>{initial.identifiedBy === 'qr' ? 'QR 스캔' : '자산 번호 직접 입력'}</dd>
+        </dl>
+      </div>
 
       {(scan.nextAction === 'checkout' || scan.nextAction === 'checkin') && (
         <button type="button" className="btn btn--primary btn--big" onClick={startCapture}>
+          <Icon name="camera" size={22} />
           {scan.inspectionId ? `${startLabel.replace(' 시작', '')} 이어서 하기` : startLabel}
         </button>
       )}
       {scan.nextAction === 'none' && (
         <>
-          <p className="hint">지금 이 노트북에 진행할 대여·반납이 없습니다.</p>
+          <p className="callout">지금 이 노트북에 진행할 대여·반납이 없습니다.</p>
           {device.status === 'available' && <CreateRental deviceId={device.id} onCreated={reload} />}
         </>
       )}
 
-      <h2>기존 손상 {damages.length}건</h2>
+      <h2 className="section-title">기존 손상 {damages.length}건</h2>
       {damages.length === 0 ? (
         <p className="hint">확정된 손상이 없습니다.</p>
       ) : (
@@ -100,7 +107,8 @@ function DeviceView({ initial }: { initial: DevicePageState }) {
           ))}
         </ul>
       )}
-      <Link to="/" className="btn">
+      <Link to="/" className="btn btn--ghost">
+        <Icon name="scan" size={18} />
         다른 노트북 스캔
       </Link>
     </section>
@@ -129,7 +137,7 @@ function CreateRental({ deviceId, onCreated }: { deviceId: number; onCreated(): 
   }
 
   return (
-    <form className="form" onSubmit={submit}>
+    <form className="card form" onSubmit={submit}>
       <label>
         고객 참조 번호(대여 계약 번호 등)
         <input value={customerRef} onChange={(e) => setCustomerRef(e.target.value)} required />

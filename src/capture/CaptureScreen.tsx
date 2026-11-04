@@ -19,6 +19,7 @@ import {
 } from './captureState';
 import { createShotProcessor, type ProcessedShot } from './shotProcessor';
 import { DEFAULT_SHOTS, reasonText, shotGuide } from './shots';
+import { Icon } from '../shared/ui/Icon';
 import { useUploadQueue } from './UploadQueueProvider';
 
 /** 노트북 화면에서 촬영 화면으로 넘기는 정보 */
@@ -286,11 +287,16 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
       <CameraView ref={videoRef} stream={camera.stream}>
         <div className={`shot-overlay shot-overlay--${current?.code ?? 'none'}`} aria-hidden="true" />
         <div className="shot-title">
-          {request.kind === 'checkout' ? '대여 촬영' : '반납 촬영'} · {doneCount}/{state.shots.length}
-          {request.deviceLabel ? ` · ${request.deviceLabel}` : ''}
+          <span>
+            {request.kind === 'checkout' ? '대여 촬영' : '반납 촬영'} · {doneCount}/{state.shots.length}
+            {request.deviceLabel ? ` · ${request.deviceLabel}` : ''}
+          </span>
+          <span className="progress" aria-hidden="true">
+            <span style={{ width: `${(doneCount / Math.max(1, state.shots.length)) * 100}%` }} />
+          </span>
         </div>
       </CameraView>
-      <div className="panel">
+      <div className="panel panel--sheet">
         {camera.error && (
           <p className="alert alert--error" role="alert">
             {camera.error}
@@ -401,13 +407,16 @@ function SubmittedView(props: {
     <section className="screen">
       {kind === 'checkout' ? (
         <>
+          <div className="done-mark" aria-hidden="true">
+            <Icon name="check" size={36} />
+          </div>
           <h1>대여 촬영 완료</h1>
-          <p>기준 사진을 저장했습니다. 노트북을 고객에게 내보내도 됩니다.</p>
+          <p className="muted">기준 사진을 저장했습니다. 노트북을 고객에게 내보내도 됩니다.</p>
         </>
       ) : (
         <>
           <h1>{phase === 'analyzing' ? '비교 중…' : '비교 완료'}</h1>
-          <ul className="result-list">
+          <ul className="result-list card">
             {shots.map((s) => (
               <li key={s.code}>
                 <span>{shotGuide(s.code).name}</span>
@@ -444,7 +453,8 @@ function SubmittedView(props: {
           )}
         </p>
       )}
-      <Link to="/" className="btn">
+      <Link to="/" className="btn btn--ghost">
+        <Icon name="scan" size={18} />
         다음 노트북 스캔
       </Link>
     </section>

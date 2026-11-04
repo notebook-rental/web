@@ -9,6 +9,7 @@ import { DAMAGE_TYPE_TEXT, SEVERITY_TEXT, shotGuide } from '../capture/shots';
 import { AnnotationCanvas } from '../shared/annotate/AnnotationCanvas';
 import { CompareViewer } from './CompareViewer';
 import { FindingCard } from './FindingPanel';
+import { Icon } from '../shared/ui/Icon';
 import { DAMAGE_TYPES, SEVERITIES } from './labels';
 
 /**
@@ -98,6 +99,9 @@ export function ReviewPage() {
   if (completed) {
     return (
       <section className="screen">
+        <div className="done-mark" aria-hidden="true">
+          <Icon name="check" size={36} />
+        </div>
         <h1>검사 완료</h1>
         <p>
           {completed.result === 'new_damage'
@@ -113,10 +117,15 @@ export function ReviewPage() {
 
   return (
     <section className="screen">
-      <h1>반납 검토</h1>
-      <p className="hint">
-        후보 {findings.length}건 · 미판정 {pending}건
-      </p>
+      <header className="page__head">
+        <div>
+          <p className="eyebrow">반납 검사 #{inspection.id}</p>
+          <h1>반납 검토</h1>
+        </div>
+        <p className={`pill${pending > 0 ? ' pill--warn' : ' pill--ok'}`}>
+          후보 {findings.length}건 · 미판정 {pending}건
+        </p>
+      </header>
       <div className="tabs tabs--scroll" role="tablist" aria-label="컷">
         {shots.map((code) => {
           const n = findings.filter((f) => f.shotType === code).length;
@@ -193,7 +202,7 @@ export function ReviewPage() {
       )}
       <button
         type="button"
-        className="btn btn--primary btn--big"
+        className="btn btn--primary btn--big btn--sticky"
         onClick={complete}
         disabled={busy || pending > 0}
       >

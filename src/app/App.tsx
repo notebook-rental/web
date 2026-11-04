@@ -1,6 +1,10 @@
 import type { ReactNode } from 'react';
-import { BrowserRouter, Link, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Link, Navigate, NavLink, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import type { Role } from '../api/types';
+import { AdminHome } from '../admin/AdminHome';
+import { AdminLayout } from '../admin/AdminLayout';
+import { DeviceListPage } from '../admin/DeviceListPage';
+import { ModelsPage } from '../admin/ModelsPage';
 import { LoginPage } from '../auth/LoginPage';
 import { CameraProvider } from '../camera/CameraProvider';
 import { CaptureScreen } from '../capture/CaptureScreen';
@@ -11,6 +15,7 @@ import { RegisterPage } from '../devices/RegisterPage';
 import { ReviewPage } from '../review/ReviewPage';
 import { ManualIdentify } from '../scan/ManualIdentify';
 import { ScanScreen } from '../scan/ScanScreen';
+import { Icon } from '../shared/ui/Icon';
 import { ServicesProvider, useServices, type ServicesProviderProps } from './services';
 
 function RequireAuth({ role, children }: { role?: Role; children: ReactNode }) {
@@ -19,9 +24,11 @@ function RequireAuth({ role, children }: { role?: Role; children: ReactNode }) {
   if (!session) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   if (role && !hasRole(role))
     return (
-      <p className="screen alert alert--error" role="alert">
-        관리자만 쓸 수 있는 화면입니다.
-      </p>
+      <section className="screen">
+        <p className="alert alert--error" role="alert">
+          관리자만 쓸 수 있는 화면입니다.
+        </p>
+      </section>
     );
   return <>{children}</>;
 }
@@ -29,25 +36,42 @@ function RequireAuth({ role, children }: { role?: Role; children: ReactNode }) {
 function Layout() {
   const { hasRole, logout } = useServices();
   const { snapshot } = useUploadQueue();
+  const { pathname } = useLocation();
+  // 카메라를 쓰는 화면은 어두운 배경으로 꽉 채운다.
+  const camera = pathname === '/' || pathname === '/capture';
   return (
-    <div className="app">
+    <div className={camera ? 'app app--camera' : 'app'}>
       <header className="topbar">
-        <Link to="/" className="topbar__home">
-          반납 검사
+        <Link to="/" className="brand" aria-label="반납 검사 홈">
+          <span className="brand__mark" aria-hidden="true">
+            <Icon name="laptop" size={18} />
+          </span>
+          <span className="brand__name">반납 검사</span>
         </Link>
         {snapshot.pending > 0 && (
-          <span className="badge" title="뒤에서 올리는 원본 사진">
+          <span className="badge badge--upload" title="뒤에서 올리는 원본 사진">
+            <Icon name="upload" size={14} />
             원본 {snapshot.pending}
           </span>
         )}
-        <nav>
-          {hasRole('admin') && <Link to="/admin/qr">QR 출력</Link>}
-          <button type="button" className="link" onClick={() => void logout()}>
-            로그아웃
+        <nav className="topbar__nav" aria-label="주 메뉴">
+          <NavLink to="/" end className="navlink">
+            <Icon name="scan" size={18} />
+            <span>스캔</span>
+          </NavLink>
+          {hasRole('admin') && (
+            <NavLink to="/admin" className="navlink">
+              <Icon name="shield" size={18} />
+              <span>관리</span>
+            </NavLink>
+          )}
+          <button type="button" className="navlink" onClick={() => void logout()} aria-label="로그아웃">
+            <Icon name="logout" size={18} />
+            <span className="navlink__text--wide">로그아웃</span>
           </button>
         </nav>
       </header>
-      <main>
+      <main className="main">
         <Outlet />
       </main>
     </div>
@@ -72,13 +96,18 @@ export function AppRoutes() {
         <Route path="capture" element={<CaptureScreen />} />
         <Route path="review/:inspectionId" element={<ReviewPage />} />
         <Route
-          path="admin/qr"
+          path="admin"
           element={
             <RequireAuth role="admin">
-              <QrBatchPage />
+              <AdminLayout />
             </RequireAuth>
           }
-        />
+        >
+          <Route index element={<AdminHome />} />
+          <Route path="devices" element={<DeviceListPage />} />
+          <Route path="models" element={<ModelsPage />} />
+          <Route path="qr" element={<QrBatchPage />} />
+        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>
