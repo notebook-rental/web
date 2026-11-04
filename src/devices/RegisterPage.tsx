@@ -7,6 +7,7 @@ import { useServices } from '../app/services';
 import type { BarcodeKind, Decoder } from '../scan/qrDecoder';
 import { goToScanResult } from '../scan/navigation';
 import { isSystemQr } from '../scan/qrValue';
+import { Icon } from '../shared/ui/Icon';
 import { SerialScanner } from './SerialScanner';
 
 /**
@@ -148,6 +149,7 @@ function NewDeviceForm({
             autoCapitalize="characters"
           />
           <button type="button" className="btn btn--ghost" onClick={() => setScanning(true)}>
+            <Icon name="scan" size={18} />
             바코드로 읽기
           </button>
         </span>
@@ -167,7 +169,8 @@ function NewDeviceForm({
           {error}
         </p>
       )}
-      <button className="btn btn--primary" disabled={busy}>
+      <button className="btn btn--primary btn--big" disabled={busy}>
+        <Icon name="check" size={20} />
         {busy ? '저장 중…' : '등록'}
       </button>
     </form>
@@ -217,7 +220,10 @@ function ReattachForm({ qrValue }: { qrValue: string }) {
           QR을 바꿀 노트북의 자산 번호
           <input value={assetNo} onChange={(e) => setAssetNo(e.target.value)} required />
         </label>
-        <button className="btn">찾기</button>
+        <button className="btn">
+          <Icon name="search" size={18} />
+          찾기
+        </button>
       </form>
       {found?.device && (
         <div className="confirm">

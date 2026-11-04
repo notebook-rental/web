@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Finding } from '../api/types';
+import { Icon } from '../shared/ui/Icon';
 import { svgPoints, type Size } from '../shared/annotate/geometry';
 
 /**
@@ -34,6 +35,7 @@ export function CompareViewer({
     <div className="viewer">
       <div className="tabs" role="tablist" aria-label="보기 방식">
         <button type="button" role="tab" aria-selected={mode === 'side'} onClick={() => setMode('side')}>
+          <Icon name="sideBySide" size={16} />
           나란히
         </button>
         <button
@@ -43,6 +45,7 @@ export function CompareViewer({
           onClick={() => setMode('overlay')}
           disabled={!canOverlay}
         >
+          <Icon name="overlay" size={16} />
           겹쳐 보기
         </button>
       </div>

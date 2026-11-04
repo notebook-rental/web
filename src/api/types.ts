@@ -47,6 +47,15 @@ export interface Device {
   serialNo: string;
   qrValue: string;
   status: DeviceStatus;
+  // 계약 보완: 목록(GET /devices)과 스캔 결과에서 모델 이름을 보여 준다
+  model?: Pick<DeviceModel, 'id' | 'manufacturer' | 'name'>;
+}
+
+/** 계약 보완: GET /devices 목록 한 줄 */
+export interface DeviceSummary extends Omit<Device, 'qrValue'> {
+  /** QR이 아직 없거나 폐기된 노트북은 null */
+  qrValue: string | null;
+  lastInspectedAt?: string | null;
 }
 
 export interface DeviceModel {
@@ -54,6 +63,22 @@ export interface DeviceModel {
   id: number;
   manufacturer: string;
   name: string;
+  shots?: ShotGuideInfo[];
+}
+
+/** 모델별 촬영 컷 안내(GET /device-models 의 shots) */
+export interface ShotGuideInfo {
+  shotType: string;
+  name: string;
+  sortOrder: number;
+  guide?: string;
+}
+
+export interface DeviceModelCreate {
+  manufacturer: string;
+  name: string;
+  /** 비우면 서버가 기본 8컷을 쓴다 */
+  shots?: string[];
 }
 
 export interface DeviceCreate {
@@ -92,6 +117,8 @@ export interface QrBatch {
   id: number;
   count: number;
   labelsPdfUrl?: string;
+  // 계약 보완: GET /qr-batches 목록
+  createdAt?: string;
 }
 
 export type InspectionKind = 'checkout' | 'checkin';

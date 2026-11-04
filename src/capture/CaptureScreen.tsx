@@ -19,6 +19,8 @@ import {
 } from './captureState';
 import { createShotProcessor, type ProcessedShot } from './shotProcessor';
 import { DEFAULT_SHOTS, reasonText, shotGuide } from './shots';
+import { Icon } from '../shared/ui/Icon';
+import { ShotDiagram } from '../shared/ui/Illustrations';
 import { useUploadQueue } from './UploadQueueProvider';
 
 /** 노트북 화면에서 촬영 화면으로 넘기는 정보 */
@@ -286,11 +288,16 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
       <CameraView ref={videoRef} stream={camera.stream}>
         <div className={`shot-overlay shot-overlay--${current?.code ?? 'none'}`} aria-hidden="true" />
         <div className="shot-title">
-          {request.kind === 'checkout' ? '대여 촬영' : '반납 촬영'} · {doneCount}/{state.shots.length}
-          {request.deviceLabel ? ` · ${request.deviceLabel}` : ''}
+          <span>
+            {request.kind === 'checkout' ? '대여 촬영' : '반납 촬영'} · {doneCount}/{state.shots.length}
+            {request.deviceLabel ? ` · ${request.deviceLabel}` : ''}
+          </span>
+          <span className="progress" aria-hidden="true">
+            <span style={{ width: `${(doneCount / Math.max(1, state.shots.length)) * 100}%` }} />
+          </span>
         </div>
       </CameraView>
-      <div className="panel">
+      <div className="panel panel--sheet">
         {camera.error && (
           <p className="alert alert--error" role="alert">
             {camera.error}
@@ -298,6 +305,7 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
         )}
         {guide && (
           <div className="guide">
+            <ShotDiagram code={guide.code} />
             <strong>{guide.name}</strong>
             {guide.open && <span className="badge">노트북 열기</span>}
             <p>{guide.guide}</p>
@@ -352,6 +360,7 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
               onClick={submit}
               disabled={phase === 'submitting'}
             >
+              <Icon name="upload" size={20} />
               {phase === 'submitting' ? '제출 중…' : '촬영 제출'}
             </button>
           ) : (
@@ -401,13 +410,16 @@ function SubmittedView(props: {
     <section className="screen">
       {kind === 'checkout' ? (
         <>
+          <div className="done-mark" aria-hidden="true">
+            <Icon name="check" size={36} />
+          </div>
           <h1>대여 촬영 완료</h1>
-          <p>기준 사진을 저장했습니다. 노트북을 고객에게 내보내도 됩니다.</p>
+          <p className="muted">기준 사진을 저장했습니다. 노트북을 고객에게 내보내도 됩니다.</p>
         </>
       ) : (
         <>
           <h1>{phase === 'analyzing' ? '비교 중…' : '비교 완료'}</h1>
-          <ul className="result-list">
+          <ul className="result-list card">
             {shots.map((s) => (
               <li key={s.code}>
                 <span>{shotGuide(s.code).name}</span>
@@ -426,8 +438,9 @@ function SubmittedView(props: {
                   ? `손상 후보 ${total}건을 찾았어요.`
                   : '변화가 없어 보여요. 확인 후 완료해 주세요.'}
               </p>
-              <button type="button" className="btn btn--primary" onClick={props.onReview}>
+              <button type="button" className="btn btn--primary btn--big" onClick={props.onReview}>
                 검토 시작
+                <Icon name="arrow" size={20} />
               </button>
             </>
           )}
@@ -439,12 +452,14 @@ function SubmittedView(props: {
           업로드가 끝나야 검사를 완료할 수 있습니다.
           {failedOriginals > 0 && (
             <button type="button" className="btn btn--ghost" onClick={props.onRetryOriginals}>
+              <Icon name="retry" size={18} />
               다시 시도
             </button>
           )}
         </p>
       )}
-      <Link to="/" className="btn">
+      <Link to="/" className="btn btn--ghost">
+        <Icon name="scan" size={18} />
         다음 노트북 스캔
       </Link>
     </section>
