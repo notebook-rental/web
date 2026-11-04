@@ -49,20 +49,34 @@ describe('ScanScreen', () => {
       qrStatus: 'void',
       nextAction: 'blocked',
     });
-    const { factory } = fakeDecoderFactory([[QR], [QR], []]);
+    const { factory } = fakeDecoderFactory([[QR]]);
     renderScreen(<ScanScreen decoderFactory={factory} />, { fetchFn: server.fetchFn });
     expect(await screen.findByText(/폐기된 QR/)).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 300));
+    expect(server.calls).toHaveLength(1);
   });
 
-  it('발급하지 않은 QR(-2001)과 그 밖의 오류를 보여 준다', async () => {
+  it('발급하지 않은 QR(-2001)과 그 밖의 오류를 보여 주고, 같은 QR은 3초 동안 다시 조회하지 않는다', async () => {
     let n = 0;
     const server = createFakeServer().on('GET', `/scan/${encodeURIComponent(QR)}`, () =>
       ++n === 1 ? fail(404, -2001, 'x') : fail(500, -1099, '서버 오류입니다.'),
     );
-    const { factory } = fakeDecoderFactory([[QR], [QR], [QR], [QR], []]);
+    let now = 1_000_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const { factory, decoder } = fakeDecoderFactory([[QR]]);
     renderScreen(<ScanScreen decoderFactory={factory} />, { fetchFn: server.fetchFn });
     expect(await screen.findByText('이 시스템에서 발급한 QR이 아닙니다.')).toBeInTheDocument();
+    const framesAtError = (decoder.decode as ReturnType<typeof vi.fn>).mock.calls.length;
+    await waitFor(() =>
+      expect((decoder.decode as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(
+        framesAtError + 4,
+      ),
+    );
+    expect(server.calls).toHaveLength(1);
+    now += 3500;
     expect(await screen.findByText('서버 오류입니다.')).toBeInTheDocument();
+    expect(server.calls).toHaveLength(2);
+    vi.restoreAllMocks();
   });
 
   it('QR이 여러 개거나 다른 바코드면 안내 문구를 바꾼다', async () => {

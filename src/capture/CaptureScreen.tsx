@@ -99,7 +99,17 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
           scannedQrValue: request.scannedQrValue,
         });
     load
-      .then((i) => !cancelled && applyInspection(i))
+      .then((i) => {
+        if (cancelled) return;
+        applyInspection(i);
+        // 새로 고침해도 검사를 또 만들지 않도록, 만든 검사 id를 이 화면의 기록(history state)에 남긴다.
+        if (!request.inspectionId) {
+          navigate('.', {
+            replace: true,
+            state: { ...request, inspectionId: i.id } satisfies CaptureRequest,
+          });
+        }
+      })
       .catch((e: unknown) => {
         if (cancelled) return;
         setFatal(
