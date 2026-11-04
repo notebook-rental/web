@@ -20,6 +20,7 @@ import {
 import { createShotProcessor, type ProcessedShot } from './shotProcessor';
 import { DEFAULT_SHOTS, reasonText, shotGuide } from './shots';
 import { Icon } from '../shared/ui/Icon';
+import { ShotDiagram } from '../shared/ui/Illustrations';
 import { useUploadQueue } from './UploadQueueProvider';
 
 /** 노트북 화면에서 촬영 화면으로 넘기는 정보 */
@@ -304,6 +305,7 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
         )}
         {guide && (
           <div className="guide">
+            <ShotDiagram code={guide.code} />
             <strong>{guide.name}</strong>
             {guide.open && <span className="badge">노트북 열기</span>}
             <p>{guide.guide}</p>
@@ -358,6 +360,7 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
               onClick={submit}
               disabled={phase === 'submitting'}
             >
+              <Icon name="upload" size={20} />
               {phase === 'submitting' ? '제출 중…' : '촬영 제출'}
             </button>
           ) : (
@@ -435,8 +438,9 @@ function SubmittedView(props: {
                   ? `손상 후보 ${total}건을 찾았어요.`
                   : '변화가 없어 보여요. 확인 후 완료해 주세요.'}
               </p>
-              <button type="button" className="btn btn--primary" onClick={props.onReview}>
+              <button type="button" className="btn btn--primary btn--big" onClick={props.onReview}>
                 검토 시작
+                <Icon name="arrow" size={20} />
               </button>
             </>
           )}
@@ -448,6 +452,7 @@ function SubmittedView(props: {
           업로드가 끝나야 검사를 완료할 수 있습니다.
           {failedOriginals > 0 && (
             <button type="button" className="btn btn--ghost" onClick={props.onRetryOriginals}>
+              <Icon name="retry" size={18} />
               다시 시도
             </button>
           )}

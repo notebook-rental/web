@@ -6,6 +6,7 @@ import { useServices } from '../app/services';
 import { STATUS_TEXT } from '../devices/labels';
 import { goToScanResult } from '../scan/navigation';
 import { Icon } from '../shared/ui/Icon';
+import { EmptyIllustration } from '../shared/ui/Illustrations';
 import { formatDate } from './format';
 
 const PAGE_SIZE = 20;
@@ -101,7 +102,7 @@ export function DeviceListPage() {
       ) : data.items.length === 0 ? (
         !error && (
           <div className="empty">
-            <Icon name="laptop" size={32} />
+            <EmptyIllustration className="empty__art" />
             <p>{query ? `"${query}"에 맞는 노트북이 없습니다.` : '아직 등록된 노트북이 없습니다.'}</p>
           </div>
         )

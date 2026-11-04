@@ -63,6 +63,16 @@ describe('AdminHome', () => {
     await waitFor(() => expect(readLocation(container).path).toBe(`/register?qr=${enc}`));
   });
 
+  it('이미 등록된 QR이면 직접 입력으로 기록해 노트북 화면으로 간다', async () => {
+    const scan = { qrValue: QR, qrStatus: 'assigned', nextAction: 'none', device: summary(1, 'A-1') };
+    const server = createFakeServer().on('GET', `/scan/${enc}`, scan);
+    const { container } = open(server);
+    fireEvent.change(screen.getByLabelText(/QR 값을 직접 입력/), { target: { value: QR } });
+    fireEvent.click(screen.getByRole('button', { name: '등록 시작' }));
+    await waitFor(() => expect(readLocation(container).path).toBe('/device'));
+    expect(readLocation(container).state).toEqual({ scan, identifiedBy: 'manual' });
+  });
+
   it('폐기된 QR, 발급하지 않은 QR, 그 밖의 오류를 알려 준다', async () => {
     let n = 0;
     const server = createFakeServer().on('GET', `/scan/${enc}`, () => {

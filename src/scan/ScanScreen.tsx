@@ -111,6 +111,7 @@ export function ScanScreen({ decoderFactory }: { decoderFactory?: (k: BarcodeKin
         )}
         {camera.error && (
           <button type="button" className="btn" onClick={() => void camera.start()}>
+            <Icon name="retry" size={18} />
             카메라 다시 켜기
           </button>
         )}

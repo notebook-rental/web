@@ -7,6 +7,15 @@ import { QR, authHandlers, fakeCameraWithQr, login, mockApi } from './support';
  * 결과는 screenshots/ 폴더에 생긴다.
  */
 test.skip(!process.env.SCREENSHOTS, 'SCREENSHOTS=1 일 때만 찍는다');
+// SCREENSHOTS=desktop 이면 PC 화면 폭(1280x860)으로 찍는다.
+const DESKTOP = process.env.SCREENSHOTS === 'desktop';
+if (DESKTOP)
+  test.use({
+    viewport: { width: 1280, height: 860 },
+    isMobile: false,
+    hasTouch: false,
+    deviceScaleFactor: 1,
+  });
 
 const SHOTS = ['top', 'bottom', 'left', 'right', 'hinge', 'front', 'keyboard', 'screen_off'];
 
@@ -34,7 +43,7 @@ const device = {
 
 async function shoot(page: Page, name: string) {
   await page.waitForTimeout(300);
-  await page.screenshot({ path: `screenshots/${name}.png` });
+  await page.screenshot({ path: `screenshots/${DESKTOP ? 'pc-' : ''}${name}.png` });
 }
 
 test('로그인', async ({ page }) => {

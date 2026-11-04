@@ -108,7 +108,8 @@ export function ReviewPage() {
             ? '새 손상이 노트북 손상 이력에 등록되었습니다.'
             : '새 손상 없이 반납 검사를 마쳤습니다.'}
         </p>
-        <Link to="/" className="btn btn--primary">
+        <Link to="/" className="btn btn--primary btn--big">
+          <Icon name="scan" size={20} />
           다음 노트북 스캔
         </Link>
       </section>
@@ -116,7 +117,7 @@ export function ReviewPage() {
   }
 
   return (
-    <section className="screen">
+    <section className="screen screen--wide">
       <header className="page__head">
         <div>
           <p className="eyebrow">반납 검사 #{inspection.id}</p>
@@ -189,6 +190,7 @@ export function ReviewPage() {
           </ul>
           {photo?.url && (
             <button type="button" className="btn btn--ghost" onClick={() => setAdding(true)}>
+              <Icon name="draw" size={18} />
               놓친 손상 직접 추가
             </button>
           )}
@@ -206,6 +208,7 @@ export function ReviewPage() {
         onClick={complete}
         disabled={busy || pending > 0}
       >
+        <Icon name={pending > 0 ? 'alert' : 'checkCircle'} size={22} />
         {pending > 0 ? `미판정 ${pending}건 남음` : '검사 완료'}
       </button>
     </section>

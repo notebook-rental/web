@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import { useServices } from '../app/services';
+import { Icon } from '../shared/ui/Icon';
 import { goToScanResult } from './navigation';
 
 /**
@@ -56,7 +57,8 @@ export function ManualIdentify() {
             {error}
           </p>
         )}
-        <button className="btn btn--primary" disabled={busy}>
+        <button className="btn btn--primary btn--big" disabled={busy}>
+          <Icon name="search" size={20} />
           {busy ? '찾는 중…' : '찾기'}
         </button>
       </form>

@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useServices } from '../app/services';
 import { Icon } from '../shared/ui/Icon';
+import { HeroIllustration } from '../shared/ui/Illustrations';
 
 /**
  * 데모용 기본 계정(사용자 요청, 2026-11-04): 화면을 열면 admin / admin이 채워져 있어 로그인 버튼만 누르면 된다.
@@ -38,6 +39,23 @@ export function LoginPage() {
 
   return (
     <section className="login">
+      <div className="login__intro">
+        <HeroIllustration className="login__hero" />
+        <ul className="login__points">
+          <li>
+            <Icon name="scanQr" size={18} />
+            QR 한 번으로 노트북 찾기
+          </li>
+          <li>
+            <Icon name="camera" size={18} />
+            안내를 따라 8컷 촬영
+          </li>
+          <li>
+            <Icon name="checkCircle" size={18} />
+            대여 때와 자동 비교
+          </li>
+        </ul>
+      </div>
       <div className="login__card">
         <div className="login__brand">
           <span className="brand__mark brand__mark--lg" aria-hidden="true">

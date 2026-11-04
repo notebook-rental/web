@@ -3,6 +3,7 @@ import type { DeviceModel } from '../api/types';
 import { useServices } from '../app/services';
 import { DEFAULT_SHOTS, shotGuide } from '../capture/shots';
 import { Icon } from '../shared/ui/Icon';
+import { EmptyIllustration } from '../shared/ui/Illustrations';
 
 /**
  * 관리자: 노트북 모델과 모델별 촬영 컷(FR-002). 새 모델을 만들 때 찍을 컷을 고른다(기본은 8컷 전부).
@@ -49,7 +50,7 @@ export function ModelsPage() {
       ) : models.length === 0 ? (
         !error && (
           <div className="empty">
-            <Icon name="layers" size={32} />
+            <EmptyIllustration className="empty__art" />
             <p>아직 등록된 모델이 없습니다. 위에서 첫 모델을 추가하세요.</p>
           </div>
         )

@@ -52,7 +52,9 @@ export interface Device {
 }
 
 /** 계약 보완: GET /devices 목록 한 줄 */
-export interface DeviceSummary extends Device {
+export interface DeviceSummary extends Omit<Device, 'qrValue'> {
+  /** QR이 아직 없거나 폐기된 노트북은 null */
+  qrValue: string | null;
   lastInspectedAt?: string | null;
 }
 

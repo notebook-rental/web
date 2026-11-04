@@ -91,7 +91,10 @@ function RegisterGuide() {
         setBusy(false);
         return;
       }
-      goToScanResult(navigate, scan, 'qr', value);
+      // 손으로 넣은 값이라 QR 스캔으로 기록하지 않는다(FR-008). 미등록 QR이면 등록 화면으로 간다.
+      if (scan.nextAction === 'register')
+        navigate(`/register?qr=${encodeURIComponent(scan.qrValue ?? value)}`);
+      else goToScanResult(navigate, scan, 'manual');
     } catch (err) {
       setError(
         err instanceof ApiError && err.resultCode === ResultCode.QR_NOT_ISSUED
