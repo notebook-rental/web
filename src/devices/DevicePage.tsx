@@ -4,7 +4,8 @@ import type { ScanResult } from '../api/types';
 import { useServices } from '../app/services';
 import type { CaptureRequest } from '../capture/CaptureScreen';
 import { DAMAGE_TYPE_TEXT, SEVERITY_TEXT, shotGuide } from '../capture/shots';
-import { registerCaptureRequest, type DevicePageState } from '../scan/navigation';
+import { registerCaptureRequest, registerRetakeRequest, type DevicePageState } from '../scan/navigation';
+import { PhotoGallery } from '../capture/PhotoGallery';
 import { STATUS_TEXT } from './labels';
 import { Icon } from '../shared/ui/Icon';
 import { downloadBlob } from '../shared/downloadBlob';
@@ -51,6 +52,7 @@ function DeviceView({ initial }: { initial: DevicePageState }) {
 
   const damages = scan.existingDamages ?? [];
   const registerRequest = registerCaptureRequest(scan, initial.identifiedBy, initial.scannedQrValue);
+  const retakeRequest = registerRetakeRequest(scan, initial.identifiedBy, initial.scannedQrValue);
   const startLabel = scan.nextAction === 'checkout' ? '대여 촬영 시작' : '반납 촬영 시작';
 
   return (
@@ -114,6 +116,16 @@ function DeviceView({ initial }: { initial: DevicePageState }) {
           <p className="callout">지금 이 노트북에 진행할 대여·반납이 없습니다.</p>
           {device.status === 'available' && <CreateRental deviceId={device.id} onCreated={reload} />}
         </>
+      )}
+
+      {scan.registerPhotos === 'completed' && scan.registerInspectionId && (
+        <PhotoGallery inspectionId={scan.registerInspectionId} title="기준 사진" />
+      )}
+      {retakeRequest && (
+        <button type="button" className="btn" onClick={() => navigate('/capture', { state: retakeRequest })}>
+          <Icon name="camera" size={18} />
+          기준 사진 다시 찍기
+        </button>
       )}
 
       <h2 className="section-title">기존 손상 {damages.length}건</h2>

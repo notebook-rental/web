@@ -459,6 +459,134 @@ describe('CaptureScreen', () => {
     expect(screen.queryByText(/업로드 남음/)).toBeNull();
   });
 
+  it('제출할 때 잠깐 실패한 원본은 저절로 다시 올리고 제출한다(제출을 여러 번 누르지 않아도 된다)', async () => {
+    let calls = 0;
+    const put = vi.fn(async () => new Response(null, { status: ++calls <= 2 ? 503 : 200 }));
+    const server = createFakeServer()
+      .on('POST', '/inspections', ok(inspection({ requiredShots: ['top'] }), 201))
+      .on('POST', '/inspections/1/photos', ok({ id: 5, originalUploadUrl: 'https://s3/x' }, 201))
+      .on('POST', '/inspections/1/submit', ok(null, 202));
+    renderScreen(
+      <CaptureScreen
+        deps={{
+          captureStill: async () => new Blob(['o']),
+          processShot: async () => processed(),
+          decoderFactory: fakeDecoderFactory([[QR]]).factory,
+        }}
+      />,
+      {
+        fetchFn: server.fetchFn,
+        path: '/capture',
+        queue: testQueue({ put, maxAttempts: 1 }),
+        state: {
+          kind: 'checkout',
+          rentalId: 9,
+          identifiedBy: 'qr',
+          scannedQrValue: QR,
+          requiredShots: ['top'],
+        },
+      },
+    );
+    fireEvent.click(await shutter());
+    fireEvent.click(await screen.findByRole('button', { name: '촬영 제출' }));
+    expect(await screen.findByText('대여 촬영 완료')).toBeInTheDocument();
+    expect(put).toHaveBeenCalledTimes(3);
+    expect(server.callsTo('POST', '/inspections/1/submit')).toHaveLength(1);
+  });
+
+  it('기준 사진 다시 찍기: 같은 검사를 다시 열고, 고칠 컷만 골라 다시 찍어 제출한다', async () => {
+    const { server } = setup(
+      { kind: 'register', rentalId: undefined, deviceId: 5, retake: true },
+      {},
+      [[QR]],
+      (s) =>
+        s.on(
+          'POST',
+          '/inspections',
+          ok(inspection({ kind: 'register', capturedShots: ['top', 'bottom'] }), 201),
+        ),
+    );
+    await waitFor(() => expect(server.callsTo('POST', '/inspections')).toHaveLength(1));
+    expect(server.callsTo('POST', '/inspections')[0].body).toMatchObject({ kind: 'register', retake: true });
+    expect(await screen.findByText('다시 찍을 컷이 있으면 위에서 그 컷을 눌러 주세요.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /촬영하기$/ })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /하판/ }));
+    const again = await screen.findByRole('button', { name: '하판 촬영하기' });
+    expect(again).toHaveTextContent('다시 찍기');
+    // 다시 찍는 중에도 제출할 수 있다
+    expect(screen.getByRole('button', { name: '촬영 제출' })).toBeInTheDocument();
+    fireEvent.click(again);
+    await waitFor(() => expect(server.callsTo('POST', '/inspections/1/photos')).toHaveLength(1));
+    expect((server.callsTo('POST', '/inspections/1/photos')[0].body as FormData).get('shotType')).toBe(
+      'bottom',
+    );
+    fireEvent.click(await screen.findByRole('button', { name: '촬영 제출' }));
+    expect(await screen.findByText('기준 사진 촬영 완료')).toBeInTheDocument();
+  });
+
+  it('기준 사진을 다 찍으면 찍은 사진을 보여 주고, 노트북 화면으로 돌아갈 수 있다', async () => {
+    let n = 0;
+    vi.stubGlobal(
+      'URL',
+      Object.assign(URL, { createObjectURL: vi.fn(() => `blob:${++n}`), revokeObjectURL: vi.fn() }),
+    );
+    const scan = {
+      nextAction: 'none',
+      qrStatus: 'assigned',
+      device: { id: 5, assetNo: 'A-001', status: 'available' },
+    };
+    const { container } = setup(
+      { kind: 'register', rentalId: undefined, deviceId: 5 },
+      {},
+      [[QR]],
+      (s) =>
+        s
+          .on(
+            'GET',
+            '/inspections/1',
+            inspection({
+              kind: 'register',
+              status: 'completed',
+              capturedShots: ['top', 'bottom'],
+              photos: [{ id: 101, shotType: 'top', originalConfirmed: true }],
+            }),
+          )
+          .on('GET', '/inspections/1/photos/101/image', () => new Response(new Blob(['j']), { status: 200 }))
+          .on('GET', `/scan/${encodeURIComponent(QR)}`, scan),
+    );
+    fireEvent.click(await shutter());
+    await screen.findByText(/1\/2/);
+    fireEvent.click(await shutter());
+    fireEvent.click(await screen.findByRole('button', { name: '촬영 제출' }));
+    expect(await screen.findByRole('button', { name: '상판 사진 크게 보기' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '찍은 기준 사진' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '노트북 화면으로' }));
+    await waitFor(() => expect(readLocation(container).path).toBe('/device'));
+    expect(readLocation(container).state).toEqual({ scan, identifiedBy: 'qr', scannedQrValue: QR });
+  });
+
+  it('노트북 화면으로 돌아가려다 조회가 실패하면 첫 화면으로 간다(자산 번호로 찾은 경우)', async () => {
+    const { container } = setup(
+      {
+        kind: 'register',
+        rentalId: undefined,
+        deviceId: 5,
+        identifiedBy: 'manual',
+        scannedQrValue: undefined,
+      },
+      {},
+      [[]],
+      (s) => s.on('GET', '/inspections/1', inspection({ kind: 'register', status: 'completed' })),
+    );
+    fireEvent.click(await shutter());
+    await screen.findByText(/1\/2/);
+    fireEvent.click(await shutter());
+    fireEvent.click(await screen.findByRole('button', { name: '촬영 제출' }));
+    fireEvent.click(await screen.findByRole('button', { name: '노트북 화면으로' }));
+    await waitFor(() => expect(readLocation(container).path).toBe('/'));
+  });
+
   it('후보가 없으면 변화 없음으로 요약한다', async () => {
     const { server } = setup({ kind: 'checkin', requiredShots: ['top'] });
     server.on(

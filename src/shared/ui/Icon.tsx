@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   TriangleAlert,
   Upload,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -61,6 +62,7 @@ const ICONS = {
   sideBySide: Columns2,
   overlay: Images,
   draw: PencilLine,
+  close: X,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

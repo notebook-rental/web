@@ -22,6 +22,7 @@ import { DEFAULT_SHOTS, reasonText, shotGuide } from './shots';
 import { Icon } from '../shared/ui/Icon';
 import { ShotDiagram } from '../shared/ui/Illustrations';
 import { useUploadQueue } from './UploadQueueProvider';
+import { PhotoGallery } from './PhotoGallery';
 
 /** 노트북 화면에서 촬영 화면으로 넘기는 정보 */
 export interface CaptureRequest {
@@ -35,6 +36,8 @@ export interface CaptureRequest {
   inspectionId?: number;
   requiredShots?: string[];
   deviceLabel?: string;
+  /** 끝난 등록 기준 촬영을 다시 열어 다시 찍는다(필요한 컷만 골라 다시 찍는다) */
+  retake?: boolean;
 }
 
 export interface CaptureDeps {
@@ -46,6 +49,8 @@ export interface CaptureDeps {
 }
 
 const DEFAULT_RETRY_DELAYS = [1500, 4000, 8000];
+/** 제출할 때 남은 원본을 다시 올려 보는 횟수(한 번마다 큐가 여러 번 다시 시도한다) */
+const FLUSH_ROUNDS = 3;
 
 const KIND_TITLE: Record<InspectionKind, string> = {
   checkout: '대여 촬영',
@@ -117,6 +122,7 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
           kind: request.kind,
           identifiedBy: request.identifiedBy,
           scannedQrValue: request.scannedQrValue,
+          ...(request.retake ? { retake: true } : {}),
         });
     load
       .then((i) => {
@@ -321,7 +327,11 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
     const left = async () => (await queue.snapshot(id)).pending + (await queue.snapshot(id)).failed;
     if ((await left()) === 0) return 0;
     setPhase('uploadingOriginals');
-    await queue.retryFailed();
+    // 잠깐 끊겨 실패한 원본은 몇 번이고 다시 올린다. 제출을 여러 번 누르지 않아도 되게 여기서 되풀이한다.
+    for (let round = 0; round < FLUSH_ROUNDS; round++) {
+      await queue.retryFailed();
+      if ((await left()) === 0) return 0;
+    }
     return left();
   }
 
@@ -371,6 +381,20 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
     );
   }
 
+  /** 촬영을 마치고 그 노트북 화면으로 돌아간다(최신 상태로 다시 조회한다). */
+  async function backToDevice() {
+    try {
+      const scan = request.scannedQrValue
+        ? await endpoints.scan(request.scannedQrValue)
+        : await endpoints.findByAsset(request.deviceLabel!);
+      navigate('/device', {
+        state: { scan, identifiedBy: request.identifiedBy, scannedQrValue: request.scannedQrValue },
+      });
+    } catch {
+      navigate('/');
+    }
+  }
+
   if (phase !== 'capturing' && phase !== 'submitting' && phase !== 'uploadingOriginals') {
     return (
       <SubmittedView
@@ -381,6 +405,8 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
         failedOriginals={pendingOriginals.filter((i) => i.failed).length}
         onRetryOriginals={() => void queue.retryFailed()}
         onReview={() => inspection && navigate(`/review/${inspection.id}`)}
+        inspectionId={inspection?.id}
+        onDevice={request.deviceLabel ? () => void backToDevice() : undefined}
       />
     );
   }
@@ -389,6 +415,9 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
   // 뒤에서 올리다 실패한 컷. 지금 다른 컷을 찍는 중이면 화면을 빼앗지 않고 여기서 알려 준다.
   const redo = state.shots.filter((s) => s.status === 'rejected' && s.code !== state.selected);
   const doneCount = state.shots.filter((s) => s.status === 'done').length;
+  // 이미 저장된 컷을 골랐으면 다시 찍을 수 있다(새 사진이 그 컷의 사진이 되고 예전 사진은 기록으로 남는다).
+  const retaking = current?.status === 'done';
+  const canShoot = !allDone(state) || retaking;
 
   return (
     <section className="screen screen--camera">
@@ -396,7 +425,7 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
         <CameraView ref={videoRef} stream={camera.stream} fit="contain">
           <div className={`shot-overlay shot-overlay--${current?.code ?? 'none'}`} aria-hidden="true" />
           {/* 팔을 들고 있을 때 아래 셔터까지 손이 가지 않아도 되게, 화면 어디를 눌러도 찍힌다 */}
-          {!allDone(state) && (
+          {canShoot && (
             <button
               type="button"
               className="camera__tap"
@@ -499,21 +528,12 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
             {notice}
           </p>
         )}
+        {allDone(state) && !retaking && (
+          <p className="hint">다시 찍을 컷이 있으면 위에서 그 컷을 눌러 주세요.</p>
+        )}
         <div className="actions">
-          {allDone(state) ? (
-            <button
-              type="button"
-              className="btn btn--primary"
-              onClick={submit}
-              disabled={phase === 'submitting' || phase === 'uploadingOriginals'}
-            >
-              <Icon name="upload" size={20} />
-              {phase === 'uploadingOriginals'
-                ? `원본 올리는 중… (남은 ${pendingOriginals.length}장)`
-                : phase === 'submitting'
-                  ? '제출 중…'
-                  : '촬영 제출'}
-            </button>
+          {!canShoot ? (
+            <SubmitButton phase={phase} left={pendingOriginals.length} onSubmit={submit} />
           ) : (
             <>
               <span className="actions__side" aria-hidden="true" />
@@ -524,7 +544,7 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
                 disabled={!inspection || !camera.stream || current?.status === 'processing'}
                 aria-label={`${guide?.name ?? ''} 촬영하기`}
               >
-                {current?.status === 'processing' ? '처리 중…' : '찍기'}
+                {current?.status === 'processing' ? '처리 중…' : retaking ? '다시 찍기' : '찍기'}
               </button>
               {/* 선택 기능: 폰의 카메라 앱으로 찍는다(줌·초점을 기본 카메라로 맞추고 싶을 때) */}
               <label className={`actions__side btn btn--ghost btn--sm${!inspection ? ' is-disabled' : ''}`}>
@@ -543,6 +563,11 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
             </>
           )}
         </div>
+        {retaking && allDone(state) && (
+          <div className="actions">
+            <SubmitButton phase={phase} left={pendingOriginals.length} onSubmit={submit} />
+          </div>
+        )}
         {pendingOriginals.length > 0 && (
           <p className="hint">
             원본 {pendingOriginals.length}장을 뒤에서 올리는 중입니다. 앱을 닫아도 다음에 이어서 올립니다.
@@ -550,6 +575,24 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
         )}
       </div>
     </section>
+  );
+}
+
+function SubmitButton({ phase, left, onSubmit }: { phase: Phase; left: number; onSubmit(): void }) {
+  return (
+    <button
+      type="button"
+      className="btn btn--primary"
+      onClick={onSubmit}
+      disabled={phase === 'submitting' || phase === 'uploadingOriginals'}
+    >
+      <Icon name="upload" size={20} />
+      {phase === 'uploadingOriginals'
+        ? `원본 올리는 중… (남은 ${left}장)`
+        : phase === 'submitting'
+          ? '제출 중…'
+          : '촬영 제출'}
+    </button>
   );
 }
 
@@ -600,6 +643,8 @@ function SubmittedView(props: {
   failedOriginals: number;
   onRetryOriginals(): void;
   onReview(): void;
+  inspectionId?: number;
+  onDevice?: () => void;
 }) {
   const { kind, phase, shots, pendingOriginals, failedOriginals } = props;
   const total = shots.reduce((n, s) => n + (s.findingCount ?? 0), 0);
@@ -664,6 +709,18 @@ function SubmittedView(props: {
             </button>
           )}
         </p>
+      )}
+      {kind !== 'checkin' && props.inspectionId && (
+        <PhotoGallery
+          inspectionId={props.inspectionId}
+          title={kind === 'register' ? '찍은 기준 사진' : '찍은 대여 사진'}
+        />
+      )}
+      {props.onDevice && (
+        <button type="button" className="btn" onClick={props.onDevice}>
+          <Icon name="laptop" size={18} />
+          노트북 화면으로
+        </button>
       )}
       <Link to="/" className="btn btn--ghost">
         <Icon name="scan" size={18} />
