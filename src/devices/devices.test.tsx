@@ -118,10 +118,42 @@ describe('DevicePage', () => {
     expect(await screen.findByRole('button', { name: '대여 촬영 시작' })).toBeInTheDocument();
   });
 
-  it('대여 중이 아닌 다른 상태에서는 대여 건 만들기를 보이지 않는다', () => {
-    open({ nextAction: 'none', qrStatus: 'assigned', device: { ...device, status: 'repair' } });
-    expect(screen.getByText('수리 중')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '대여 대기 건 만들기' })).toBeNull();
+  it('기준 사진을 아직 안 찍었으면 기준 사진 촬영으로 넘긴다(spec 002 US5)', () => {
+    const { container } = open({ nextAction: 'none', qrStatus: 'assigned', device, registerPhotos: 'none' });
+    expect(screen.getByText('아직 안 찍음')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /기준 사진 촬영 \(8컷\)/ }));
+    expect(readLocation(container)).toEqual({
+      path: '/capture',
+      state: { kind: 'register', deviceId: 5, identifiedBy: 'qr', scannedQrValue: QR, deviceLabel: 'A-001' },
+    });
+  });
+
+  it('찍는 중이면 이어서 찍고, 다 찍었거나 대여 중이면 버튼이 없다', () => {
+    const { container, unmount } = open({
+      nextAction: 'none',
+      qrStatus: 'assigned',
+      device,
+      registerPhotos: 'capturing',
+      registerInspectionId: 31,
+    });
+    expect(screen.getByText('찍는 중')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /기준 사진 이어서 찍기/ }));
+    expect(readLocation(container).state).toMatchObject({ kind: 'register', inspectionId: 31 });
+    unmount();
+
+    const done = open({ nextAction: 'none', qrStatus: 'assigned', device, registerPhotos: 'completed' });
+    expect(screen.getByText('찍음')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /기준 사진/ })).toBeNull();
+    done.unmount();
+
+    open({
+      nextAction: 'checkin',
+      qrStatus: 'assigned',
+      device: { ...device, status: 'rented' },
+      rentalId: 9,
+      registerPhotos: 'none',
+    });
+    expect(screen.queryByRole('button', { name: /기준 사진/ })).toBeNull();
   });
 });
 
@@ -159,7 +191,19 @@ describe('RegisterPage', () => {
     fireEvent.change(screen.getByLabelText('노트북 모델'), { target: { value: '2' } });
     fireEvent.change(screen.getByLabelText('시리얼 번호'), { target: { value: '   ' } });
     fireEvent.click(screen.getByRole('button', { name: '등록' }));
-    await waitFor(() => expect(readLocation(container).path).toBe('/device'));
+    // 등록하면 바로 기준 사진 8컷 촬영으로 넘어간다(spec 002 US5)
+    await waitFor(() =>
+      expect(readLocation(container)).toEqual({
+        path: '/capture',
+        state: {
+          kind: 'register',
+          deviceId: 5,
+          identifiedBy: 'qr',
+          scannedQrValue: asset,
+          deviceLabel: 'A-001',
+        },
+      }),
+    );
     expect(server.callsTo('POST', '/devices')[0].body).toEqual({ qrValue: asset, deviceModelId: 2 });
   });
 
@@ -167,7 +211,13 @@ describe('RegisterPage', () => {
     const server = createFakeServer()
       .on('GET', '/device-models', list(models))
       .on('POST', '/devices', device)
-      .on('GET', `/scan/${enc}`, { nextAction: 'none', qrStatus: 'assigned', device });
+      // 기준 사진을 이미 찍은 노트북이면 노트북 화면에 머문다
+      .on('GET', `/scan/${enc}`, {
+        nextAction: 'none',
+        qrStatus: 'assigned',
+        device,
+        registerPhotos: 'completed',
+      });
     const { container } = renderScreen(<RegisterPage />, {
       fetchFn: server.fetchFn,
       path: `/register?qr=${enc}`,

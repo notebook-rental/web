@@ -5,7 +5,7 @@ import { ResultCode } from '../api/resultCodes';
 import type { DeviceCreate, DeviceModel, ScanResult } from '../api/types';
 import { useServices } from '../app/services';
 import type { BarcodeKind, Decoder } from '../scan/qrDecoder';
-import { goToScanResult } from '../scan/navigation';
+import { goToScanResult, registerCaptureRequest } from '../scan/navigation';
 import { isLabelValue, isSystemQr, normalizeQrValue } from '../scan/qrValue';
 import { Icon } from '../shared/ui/Icon';
 import { SerialScanner } from './SerialScanner';
@@ -91,7 +91,10 @@ function NewDeviceForm({
       if (serialNo.trim()) body.serialNo = serialNo.trim();
       await endpoints.createDevice(body);
       const scan: ScanResult = await endpoints.scan(scanned);
-      goToScanResult(navigate, scan, 'qr', scanned);
+      goToScanResult(navigate, scan, 'qr', scanned, { replace: true });
+      // 등록하면 바로 기준 사진 8컷을 찍는다(spec 002 US5). 뒤로 가면 노트북 화면이 나온다.
+      const request = registerCaptureRequest(scan, 'qr', scanned);
+      if (request) navigate('/capture', { state: request });
     } catch (err) {
       setError(registerError(err));
       setBusy(false);
