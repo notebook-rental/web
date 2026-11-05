@@ -209,7 +209,9 @@ export function ReviewPage() {
             key={shot ?? ''}
             baselineUrl={baselineUrl}
             targetUrl={targetUrl}
-            alignedTargetUrl={ref?.alignedTargetUrl}
+            // 영역끼리만 맞춘 비교(patch)는 정렬 사진이 없고, 겹치면 어긋나 보여서 겹쳐 보기를 쓰지 않는다
+            alignedTargetUrl={comparison?.method === 'patch' ? undefined : ref?.alignedTargetUrl}
+            canOverlay={comparison?.method !== 'patch'}
             targetSize={targetSize}
             findings={shotFindings}
             selectedId={selectedId}

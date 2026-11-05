@@ -181,7 +181,9 @@ export interface ShotComparison {
   status: ComparisonStatus | null;
   /** 자동 비교 불가(not_comparable)일 때 그 이유 코드(예: too_few_matches) */
   reason?: string | null;
-  /** 비교 기준이 된 대여 때 사진. 후보가 없는 컷도 대여 때 사진을 보여 주려고 받는다 */
+  /** done 일 때 비교 방식: aligned(정확히 겹침) 또는 patch(영역끼리만 맞춤, 겹쳐 보기 없음, spec 004) */
+  method?: 'aligned' | 'patch' | null;
+  /** 비교 기준이 된 대여 때 사진(ml 이 가장 닮았다고 고른 사진일 수 있다). 후보가 없는 컷도 대여 때 사진을 보여 주려고 받는다 */
   baselinePhotoUrl?: string | null;
 }
 

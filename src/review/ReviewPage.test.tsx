@@ -214,6 +214,23 @@ describe('ReviewPage', () => {
     expect(screen.getByRole('tab', { name: /상판/ })).toHaveAttribute('aria-selected', 'true');
   });
 
+  it('영역끼리만 맞춘 비교(patch)는 겹쳐 보기를 막고, ml 이 고른 기준 사진을 보여 준다', async () => {
+    setup((s) =>
+      s.on('GET', '/inspections/1', {
+        ...inspection,
+        comparisons: [
+          { shotType: 'top', status: 'done', method: 'patch', baselinePhotoUrl: 'https://img/matched.jpg' },
+          { shotType: 'bottom', status: 'not_comparable', reason: 'laptop_not_found' },
+        ],
+      }),
+    );
+    await screen.findByText('후보 2건 · 미판정 2건');
+    expect(screen.getByAltText('대여 시 사진')).toHaveAttribute('src', 'https://img/matched.jpg');
+    expect(screen.getByRole('tab', { name: '겹쳐 보기' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('tab', { name: /하판/ }));
+    expect(screen.getByText(/반납 사진에서 노트북을 찾지 못했어요/)).toBeInTheDocument();
+  });
+
   it('새 손상으로 판정한 뒤 유형·심각도를 바꾸면 다시 저장한다', async () => {
     const { server } = setup();
     const card1 = await screen.findByRole('listitem', { name: '후보 #1' });

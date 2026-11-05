@@ -28,6 +28,8 @@ const REASON_TEXT: Record<string, string> = {
   alignment_error_too_large: '두 사진을 겹쳐 봤지만 어긋남이 너무 커요.',
   alignment_failed: '두 사진을 같은 모양으로 겹치지 못했어요.',
   no_baseline: '비교할 대여 때 사진이 없어요.',
+  laptop_not_found: '반납 사진에서 노트북을 찾지 못했어요.',
+  no_matching_baseline: '대여 때 찍은 이 노트북 사진 중 닮은 사진을 찾지 못했어요.',
 };
 
 export function reasonText(reason?: string | null): string {

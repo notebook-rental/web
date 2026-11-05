@@ -17,6 +17,7 @@ export function CompareViewer({
   findings,
   selectedId,
   onSelect,
+  canOverlay: overlayAllowed = true,
 }: {
   baselineUrl?: string | null;
   targetUrl?: string;
@@ -25,13 +26,15 @@ export function CompareViewer({
   findings: Finding[];
   selectedId: number | null;
   onSelect(id: number): void;
+  /** false 면 겹쳐 보기를 막는다(두 사진을 정확히 겹치지 못한 비교) */
+  canOverlay?: boolean;
 }) {
   const [mode, setMode] = useState<'side' | 'overlay'>('side');
   const [split, setSplit] = useState(50);
   const [natural, setNatural] = useState<Size | null>(null);
   const [zoom, setZoom] = useState<'baseline' | 'target' | null>(null);
   const size = targetSize ?? natural;
-  const canOverlay = !!baselineUrl && !!(alignedTargetUrl ?? targetUrl);
+  const canOverlay = overlayAllowed && !!baselineUrl && !!(alignedTargetUrl ?? targetUrl);
   const overlayTarget = alignedTargetUrl ?? targetUrl;
 
   // 겹쳐 볼 수 없는 컷이면 늘 나란히 보기로 보여 준다.
