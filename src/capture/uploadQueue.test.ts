@@ -25,7 +25,11 @@ describe('OriginalUploadQueue', () => {
     const { queue, put, confirm, store } = setup();
     await queue.enqueue(item);
     await queue.drain();
-    expect(put).toHaveBeenCalledWith('https://s3/put', item.blob);
+    expect(put).toHaveBeenCalledWith(
+      'https://s3/put',
+      item.blob,
+      expect.objectContaining({ photoId: item.photoId }),
+    );
     expect(confirm).toHaveBeenCalledWith(1, 10);
     expect(await store.values()).toEqual([]);
   });

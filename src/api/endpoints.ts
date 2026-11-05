@@ -73,6 +73,14 @@ export function createEndpoints(api: ApiClient) {
       if (input.decodedQrValues?.length) form.append('decodedQrValues', input.decodedQrValues.join(','));
       return api.request<PhotoUploaded>('POST', `/inspections/${inspectionId}/photos`, { form });
     },
+    /** 원본을 서버를 거쳐 올린다. 서버가 sha256을 대조해 저장하고 확인까지 끝낸다. */
+    uploadOriginal: (inspectionId: number, photoId: number, blob: Blob) => {
+      const form = new FormData();
+      form.append('file', blob, 'original.jpg');
+      return api.request<null>('POST', `/inspections/${inspectionId}/photos/${photoId}/original/content`, {
+        form,
+      });
+    },
     confirmOriginal: (inspectionId: number, photoId: number) =>
       api.request<null>('POST', `/inspections/${inspectionId}/photos/${photoId}/original`),
     submitInspection: (id: number) => api.request<null>('POST', `/inspections/${id}/submit`),
