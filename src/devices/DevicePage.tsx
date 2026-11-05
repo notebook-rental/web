@@ -94,7 +94,7 @@ function DeviceView({ initial }: { initial: DevicePageState }) {
       </div>
 
       {(scan.nextAction === 'checkout' || scan.nextAction === 'checkin') && (
-        <button type="button" className="btn btn--primary btn--big" onClick={startCapture}>
+        <button type="button" className="btn btn--primary btn--big btn--sticky" onClick={startCapture}>
           <Icon name="camera" size={22} />
           {scan.inspectionId ? `${startLabel.replace(' 시작', '')} 이어서 하기` : startLabel}
         </button>
@@ -102,7 +102,7 @@ function DeviceView({ initial }: { initial: DevicePageState }) {
       {registerRequest && (
         <button
           type="button"
-          className="btn btn--primary btn--big"
+          className="btn btn--primary btn--big btn--sticky"
           onClick={() => navigate('/capture', { state: registerRequest })}
         >
           <Icon name="camera" size={22} />
