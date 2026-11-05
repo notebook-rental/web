@@ -1,5 +1,12 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createShotProcessor, processShot, type ProcessedShot, type ShotWorkerLike } from './shotProcessor';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import {
+  createShotProcessor,
+  processShot,
+  processShotForWorker,
+  type ShotWorkerLike,
+  type ShotWorkerRequest,
+  type ShotWorkerResult,
+} from './shotProcessor';
 
 function fakeBlob(text: string): Blob {
   const b = new Blob([text]);
@@ -100,18 +107,41 @@ describe('processShot', () => {
   });
 });
 
+/** jsdom Blob에는 arrayBuffer가 없다. Worker 주고받기 검사 동안만 FileReader로 채운다. */
+function withBlobArrayBuffer() {
+  const proto = Blob.prototype as { arrayBuffer?: () => Promise<ArrayBuffer> };
+  const had = Object.prototype.hasOwnProperty.call(proto, 'arrayBuffer');
+  beforeAll(() => {
+    if (!had)
+      proto.arrayBuffer = function (this: Blob) {
+        return new Promise<ArrayBuffer>((resolve) => {
+          const fr = new FileReader();
+          fr.onload = () => resolve(fr.result as ArrayBuffer);
+          fr.readAsArrayBuffer(this);
+        });
+      };
+  });
+  afterAll(() => {
+    if (!had) delete proto.arrayBuffer;
+  });
+}
+
 describe('createShotProcessor', () => {
-  const result = { originalSha256: 'h' } as ProcessedShot;
+  withBlobArrayBuffer();
+  const sent: { msg: ShotWorkerRequest; transfer?: Transferable[] }[] = [];
+  const result = (): ShotWorkerResult =>
+    ({ originalSha256: 'h', workingBuffer: new Uint8Array([1, 2, 3]).buffer }) as ShotWorkerResult;
 
   function worker(respond: 'ok' | 'error' | 'errorNoMessage') {
     let listener: ((e: MessageEvent) => void) | null = null;
     const w: ShotWorkerLike = {
-      postMessage(msg) {
+      postMessage(msg, transfer) {
+        sent.push({ msg, transfer });
         queueMicrotask(() => {
-          listener?.({ data: { id: 12345, result } } as MessageEvent); // 다른 요청의 응답은 무시
+          listener?.({ data: { id: 12345, result: result() } } as MessageEvent); // 다른 요청의 응답은 무시
           const data =
             respond === 'ok'
-              ? { id: msg.id, result }
+              ? { id: msg.id, result: result() }
               : respond === 'error'
                 ? { id: msg.id, error: '디코딩 실패' }
                 : { id: msg.id };
@@ -124,10 +154,21 @@ describe('createShotProcessor', () => {
     return w;
   }
 
-  it('Worker가 있으면 Worker에서 처리한다', async () => {
+  it('Worker가 있으면 Worker에서 처리하고, Blob 대신 바이트로 주고받는다(iOS Safari Load failed 방지)', async () => {
+    sent.length = 0;
     const w = worker('ok');
     const p = createShotProcessor(() => w);
-    await expect(p(new Blob())).resolves.toBe(result);
+    const out = await p(new Blob([new Uint8Array([9, 9])], { type: 'image/jpeg' }));
+    // 보낼 때: ArrayBuffer를 넘기고(transfer), 원본의 형식을 함께 알린다.
+    expect(sent[0].msg.buffer).toBeInstanceOf(ArrayBuffer);
+    expect(sent[0].msg.type).toBe('image/jpeg');
+    expect(sent[0].transfer).toEqual([sent[0].msg.buffer]);
+    // 받을 때: 화면 쪽에서 작업본 Blob을 새로 만든다.
+    expect(out.originalSha256).toBe('h');
+    expect(out.working).toBeInstanceOf(Blob);
+    expect(out.working.type).toBe('image/jpeg');
+    expect(new Uint8Array(await out.working.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));
+    expect(out).not.toHaveProperty('workingBuffer');
     p.dispose();
     expect(w.terminate).toHaveBeenCalled();
   });
@@ -154,5 +195,17 @@ describe('createShotProcessor', () => {
     const p = createShotProcessor();
     expect(typeof p).toBe('function');
     p.dispose();
+  });
+});
+
+describe('processShotForWorker', () => {
+  withBlobArrayBuffer();
+  it('바이트로 받은 원본을 처리해 작업본도 바이트로 돌려준다', async () => {
+    installCanvas('offscreen');
+    const buffer = await fakeBlob('a').arrayBuffer();
+    const r = await processShotForWorker({ id: 1, buffer, type: '' });
+    expect(r.workingBuffer).toBeInstanceOf(ArrayBuffer);
+    expect(r).not.toHaveProperty('working');
+    expect(r.width).toBe(4000);
   });
 });

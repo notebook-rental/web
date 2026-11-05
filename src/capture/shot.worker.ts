@@ -1,11 +1,12 @@
 /// <reference lib="webworker" />
-import { processShot } from './shotProcessor';
+import { processShotForWorker, type ShotWorkerRequest } from './shotProcessor';
 
-self.onmessage = async (e: MessageEvent<{ id: number; blob: Blob }>) => {
-  const post = (m: unknown) => (self as unknown as Worker).postMessage(m);
+self.onmessage = async (e: MessageEvent<ShotWorkerRequest>) => {
+  const scope = self as unknown as Worker;
   try {
-    post({ id: e.data.id, result: await processShot(e.data.blob) });
+    const result = await processShotForWorker(e.data);
+    scope.postMessage({ id: e.data.id, result }, [result.workingBuffer]);
   } catch (err) {
-    post({ id: e.data.id, error: err instanceof Error ? err.message : String(err) });
+    scope.postMessage({ id: e.data.id, error: err instanceof Error ? err.message : String(err) });
   }
 };
