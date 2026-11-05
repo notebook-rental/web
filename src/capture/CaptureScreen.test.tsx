@@ -172,6 +172,55 @@ describe('CaptureScreen', () => {
     expect(server.callsTo('POST', '/inspections/1/photos')).toHaveLength(2);
   });
 
+  it('인터넷이 끊겨 못 올리면(Safari "Load failed") 다시 찍지 않고 다시 올릴 수 있다', async () => {
+    let n = 0;
+    const { server } = setup({}, {}, [[QR]], (s) =>
+      s.on('POST', '/inspections/1/photos', () => {
+        n += 1;
+        if (n === 1) throw new TypeError('Load failed');
+        return ok({ id: 101, shotType: 'top', originalUploadUrl: 'https://s3/put' }, 201);
+      }),
+    );
+    await waitFor(() => expect(server.callsTo('POST', '/inspections')).toHaveLength(1));
+    fireEvent.click(await shutter());
+    expect(await screen.findByText(/인터넷이 잠깐 끊겨/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '다시 올리기' }));
+    await screen.findByText(/대여 촬영 · 1\/2/);
+    expect(n).toBe(2);
+  });
+
+  it('폰 카메라 앱으로 찍은 사진도 같은 방법으로 올린다(선택 기능)', async () => {
+    const { server } = setup();
+    await waitFor(() => expect(server.callsTo('POST', '/inspections')).toHaveLength(1));
+    const input = await screen.findByLabelText('상판 폰 카메라 앱으로 찍기');
+    await waitFor(() => expect(input).toBeEnabled());
+    fireEvent.change(input, { target: { files: [new File(['jpg'], 'top.jpg', { type: 'image/jpeg' })] } });
+    await screen.findByText(/대여 촬영 · 1\/2/);
+    expect((server.callsTo('POST', '/inspections/1/photos')[0].body as FormData).get('shotType')).toBe('top');
+    // 파일을 고르지 않고 닫으면 아무것도 하지 않는다
+    fireEvent.change(await screen.findByLabelText('하판 폰 카메라 앱으로 찍기'), { target: { files: [] } });
+    expect(server.callsTo('POST', '/inspections/1/photos')).toHaveLength(1);
+  });
+
+  it('찍으면 화면이 번쩍이고 진동하며, 나가기 버튼으로 이전 화면으로 간다', async () => {
+    const vibrate = vi.fn();
+    Object.defineProperty(navigator, 'vibrate', { value: vibrate, configurable: true });
+    const { server, container } = setup();
+    await waitFor(() => expect(server.callsTo('POST', '/inspections')).toHaveLength(1));
+    fireEvent.click(await shutter());
+    await waitFor(() => expect(container.querySelector('.camera__flash')).not.toBeNull());
+    expect(vibrate).toHaveBeenCalledWith(30);
+    await screen.findByText(/대여 촬영 · 1\/2/);
+    fireEvent.click(screen.getByRole('button', { name: '촬영 나가기' }));
+  });
+
+  it('사진을 얻지 못하면 그 컷에 이유를 보여 준다', async () => {
+    const { server } = setup({}, { captureStill: async () => Promise.reject(new Error('카메라 오류')) });
+    await waitFor(() => expect(server.callsTo('POST', '/inspections')).toHaveLength(1));
+    fireEvent.click(await shutter());
+    expect(await screen.findByText('카메라 오류')).toBeInTheDocument();
+  });
+
   it('폰의 1차 품질 검사에 걸리면 사유를 보여 주고, 그래도 올리기로 서버에 맡길 수 있다', async () => {
     const { server } = setup({}, { processShot: async () => processed(['blurry', 'too_dark']) });
     fireEvent.click(await shutter());
