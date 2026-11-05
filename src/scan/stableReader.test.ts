@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isSystemQr, normalizeQrValue } from './qrValue';
+import { isLabelValue, isSystemQr, normalizeQrValue } from './qrValue';
 import { StableReader } from './stableReader';
 
 const A = 'NR1:7K3M9QX2TD';
@@ -13,6 +13,18 @@ describe('qrValue', () => {
     expect(isSystemQr('NR1:7K3M9QX2TI')).toBe(false); // I는 쓰지 않는 글자
     expect(isSystemQr('https://example.com')).toBe(false);
     expect(normalizeQrValue(' nr1:abc ')).toBe('NR1:ABC');
+  });
+
+  it('자산 번호 라벨 값은 글자 그대로 두고, 자산 번호 모양만 받는다(spec 002)', () => {
+    expect(normalizeQrValue(' NB26110001 ')).toBe('NB26110001');
+    expect(normalizeQrValue('a-001')).toBe('a-001');
+    expect(isLabelValue('NB26110001')).toBe(true);
+    expect(isLabelValue('OLD/ASSET_7.1')).toBe(true);
+    expect(isLabelValue(A)).toBe(true);
+    expect(isLabelValue('NR1:BAD')).toBe(false);
+    expect(isLabelValue('https://example.com')).toBe(false);
+    expect(isLabelValue('-x')).toBe(false);
+    expect(isLabelValue('A'.repeat(31))).toBe(false);
   });
 });
 
@@ -49,10 +61,11 @@ describe('StableReader', () => {
     expect(r.push([A, A.toLowerCase()])).toEqual({ kind: 'confirmed', value: A });
   });
 
-  it('시스템 QR이 아닌 값만 있으면 foreign', () => {
+  it('자산 번호로 쓸 수 없는 값만 있으면 foreign', () => {
     const r = new StableReader();
-    expect(r.push(['hello'])).toEqual({ kind: 'foreign' });
-    // 다른 바코드가 섞여 있어도 시스템 QR은 읽는다.
-    expect(r.push(['hello', A]).kind).toBe('pending');
+    expect(r.push(['https://example.com'])).toEqual({ kind: 'foreign' });
+    // URL 같은 값이 섞여 있어도 라벨은 읽는다.
+    expect(r.push(['https://example.com', A]).kind).toBe('pending');
+    expect(r.push(['NB26110001']).kind).toBe('pending');
   });
 });

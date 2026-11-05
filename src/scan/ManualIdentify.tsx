@@ -6,7 +6,7 @@ import { Icon } from '../shared/ui/Icon';
 import { goToScanResult } from './navigation';
 
 /**
- * QR이 훼손되어 읽히지 않을 때 자산 번호로 노트북을 찾는다(FR-008).
+ * 라벨이 훼손되어 읽히지 않을 때 자산 번호를 직접 넣어 노트북을 찾는다(FR-008).
  * 서버는 이렇게 찾은 경우 identifiedBy=manual로 기록한다.
  */
 export function ManualIdentify() {
@@ -40,7 +40,9 @@ export function ManualIdentify() {
   return (
     <section className="screen">
       <h1>자산 번호로 찾기</h1>
-      <p className="hint">QR을 읽을 수 없을 때만 씁니다. 찾은 뒤에는 QR 재부착을 요청해 주세요.</p>
+      <p className="hint">
+        라벨을 읽을 수 없을 때만 씁니다. 찾은 뒤에는 관리자에게 라벨을 다시 출력해 달라고 요청해 주세요.
+      </p>
       <form onSubmit={submit} className="form">
         <label>
           자산 번호

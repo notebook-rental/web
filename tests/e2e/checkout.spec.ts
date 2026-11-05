@@ -87,7 +87,9 @@ test('대여 촬영: QR 스캔 → 노트북 화면 → 8컷 촬영 → 제출',
   });
 });
 
-test('미등록 QR을 스캔하면 등록 화면이 열리고 저장하면 노트북 화면으로 간다', async ({ page }) => {
+test('처음 보는 라벨(예전 QR)을 스캔하면 등록 화면이 열리고 저장하면 노트북 화면으로 간다', async ({
+  page,
+}) => {
   await fakeCameraWithQr(page);
   let registered = false;
   await mockApi(page, {
@@ -103,9 +105,11 @@ test('미등록 QR을 스캔하면 등록 화면이 열리고 저장하면 노�
     },
   });
   await login(page);
-  await expect(page.getByRole('heading', { name: '새 QR 등록' })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('heading', { name: '새 노트북 등록' })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByText(QR)).toBeVisible();
   await page.getByLabel('자산 번호').fill('A-001');
+  // 시리얼은 선택 항목이라 접혀 있다. 펼쳐서 넣는다.
+  await page.getByText('시리얼 번호 (선택)').click();
   await page.getByLabel('시리얼 번호').fill('SN1');
   await page.getByRole('button', { name: '등록' }).click();
   await expect(page.getByRole('heading', { name: 'A-001' })).toBeVisible();

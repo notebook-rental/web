@@ -8,6 +8,7 @@ import type {
   Finding,
   Inspection,
   InspectionKind,
+  LabelFormat,
   ManualFinding,
   PhotoUploaded,
   QrBatch,
@@ -40,14 +41,15 @@ export function createEndpoints(api: ApiClient) {
       return api.list<DeviceSummary>(`/devices?${params.toString()}`);
     },
     createDevice: (body: DeviceCreate) => api.request<Device>('POST', '/devices', { json: body }),
-    replaceQr: (deviceId: number, qrValue: string) =>
-      api.request<Device>('PUT', `/devices/${deviceId}/qr`, { json: { qrValue } }),
+    deviceLabelPdf: (deviceId: number, format: LabelFormat) =>
+      api.blob(`/devices/${deviceId}/label.pdf?format=${format}`),
     createRental: (deviceId: number, customerRef: string) =>
       api.request<{ id: number }>('POST', '/rentals', { json: { deviceId, customerRef } }),
 
     createQrBatch: (count: number) => api.request<QrBatch>('POST', '/qr-batches', { json: { count } }),
     listQrBatches: (page = 0, size = 20) => api.list<QrBatch>(`/qr-batches?page=${page}&size=${size}`),
-    qrBatchPdf: (batchId: number) => api.blob(`/qr-batches/${batchId}/labels.pdf`),
+    qrBatchPdf: (batchId: number, format: LabelFormat = 'qr') =>
+      api.blob(`/qr-batches/${batchId}/labels.pdf?format=${format}`),
     voidQr: (qrValue: string) => api.request<null>('POST', `/qr-tags/${enc(qrValue)}/void`),
 
     createInspection: (body: {

@@ -2,16 +2,23 @@ import { useEffect, useState, type FormEvent } from 'react';
 import type { QrBatch } from '../api/types';
 import { formatDate } from '../admin/format';
 import { useServices } from '../app/services';
-import { isSystemQr, normalizeQrValue } from '../scan/qrValue';
+import { isLabelValue, normalizeQrValue } from '../scan/qrValue';
+import { downloadBlob } from '../shared/downloadBlob';
 import { Icon } from '../shared/ui/Icon';
+import { LabelFormatPicker } from './LabelFormatPicker';
+import { useLabelFormat } from './labelFormat';
 
 /**
- * 관리자: 빈 QR 스티커 묶음 출력(FR-046)과 분실·오인쇄 QR 폐기.
- * 발급한 QR은 아직 어느 노트북에도 묶이지 않은 "미등록" 상태다. 노트북에 붙이고 스캔하면 등록 화면이 열린다.
+ * 관리자: 자산 번호 라벨 발급과 출력(FR-046, spec 002), 분실·오인쇄 라벨 폐기.
+ *
+ * 발급하면 시스템이 자산 번호를 NB + 연월 + 그 달 순번 4자리로 매긴다(예: NB26110001).
+ * 출력할 때 QR이나 바코드 중 하나를 고른다. 라벨에 든 값(자산 번호)은 같고 모양만 다르다.
+ * 발급한 라벨은 아직 어느 노트북에도 묶이지 않은 "미등록" 상태다. 노트북에 붙이고 스캔하면 등록 화면이 열린다.
  */
 export function QrBatchPage() {
   const { endpoints } = useServices();
   const [count, setCount] = useState(20);
+  const [format, setFormat] = useLabelFormat();
   const [batch, setBatch] = useState<QrBatch | null>(null);
   const [history, setHistory] = useState<QrBatch[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -49,24 +56,18 @@ export function QrBatchPage() {
   async function download(batchId: number) {
     setError(null);
     try {
-      const blob = await endpoints.qrBatchPdf(batchId);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `qr-batch-${batchId}.pdf`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      downloadBlob(await endpoints.qrBatchPdf(batchId, format), `labels-${batchId}-${format}.pdf`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'PDF를 받지 못했습니다.');
     }
   }
 
-  async function voidQr(e: FormEvent) {
+  async function voidLabel(e: FormEvent) {
     e.preventDefault();
     setVoidMessage(null);
     const value = normalizeQrValue(voidValue);
-    if (!isSystemQr(value)) {
-      setVoidMessage('QR 값 형식이 올바르지 않습니다. 예: NR1:7K3M9QX2TD');
+    if (!isLabelValue(value)) {
+      setVoidMessage('자산 번호 형식이 올바르지 않습니다. 예: NB26110001');
       return;
     }
     try {
@@ -78,18 +79,28 @@ export function QrBatchPage() {
     }
   }
 
+  const range = (b: QrBatch) =>
+    b.firstAssetNo
+      ? b.firstAssetNo === b.lastAssetNo
+        ? b.firstAssetNo
+        : `${b.firstAssetNo} ~ ${b.lastAssetNo}`
+      : null;
+
   return (
     <section className="page">
       <header className="page__head">
         <div>
           <p className="eyebrow">관리자</p>
-          <h1>QR 스티커 출력</h1>
+          <h1>자산 번호 라벨</h1>
         </div>
       </header>
 
       <form className="card form" onSubmit={issue}>
-        <h2 className="card__title">빈 QR 발급</h2>
-        <p className="hint">발급한 QR을 노트북에 붙이고 스캔하면 새 노트북 등록 화면이 열립니다.</p>
+        <h2 className="card__title">새 자산 번호 발급</h2>
+        <p className="hint">
+          자산 번호는 NB + 연월 + 순번으로 매겨집니다(예: NB26110001은 2026년 11월 첫 번째). 라벨을 노트북에
+          붙이고 스캔하면 새 노트북 등록 화면이 열립니다.
+        </p>
         <label>
           장 수(1~500)
           <input
@@ -102,20 +113,9 @@ export function QrBatchPage() {
           />
         </label>
         <button className="btn btn--primary" disabled={busy}>
-          <Icon name="qr" size={18} />
-          {busy ? '발급 중…' : '빈 QR 발급'}
+          <Icon name="plus" size={18} />
+          {busy ? '발급 중…' : '자산 번호 발급'}
         </button>
-        {batch && (
-          <div className="confirm">
-            <p>
-              묶음 #{batch.id}: {batch.count}장 발급됨
-            </p>
-            <button type="button" className="btn" onClick={() => void download(batch.id)}>
-              <Icon name="download" size={18} />
-              스티커 PDF 내려받기
-            </button>
-          </div>
-        )}
         {error && (
           <p className="alert alert--error" role="alert">
             {error}
@@ -123,16 +123,33 @@ export function QrBatchPage() {
         )}
       </form>
 
-      {history.length > 0 && (
-        <div className="card">
-          <h2 className="card__title">지난 묶음</h2>
-          <ul className="rows rows--plain" aria-label="지난 QR 묶음">
+      <div className="card form">
+        <h2 className="card__title">라벨 출력</h2>
+        <p className="hint">
+          QR은 작게 붙여도 잘 읽히고, 바코드는 기존 자산 스티커와 모양이 같습니다. 고른 형식은 다음에도
+          기억합니다.
+        </p>
+        <LabelFormatPicker value={format} onChange={setFormat} />
+        {batch && (
+          <div className="confirm">
+            <p>
+              묶음 #{batch.id}: {batch.count}장 발급됨{range(batch) && ` (${range(batch)})`}
+            </p>
+            <button type="button" className="btn" onClick={() => void download(batch.id)}>
+              <Icon name="download" size={18} />
+              라벨 PDF 내려받기
+            </button>
+          </div>
+        )}
+        {history.length > 0 && (
+          <ul className="rows rows--plain" aria-label="지난 라벨 묶음">
             {history.map((b) => (
               <li key={b.id} className="row row--static">
                 <span className="row__main">
                   <strong>묶음 #{b.id}</strong>
                   <span className="muted">
-                    {b.count}장 · {formatDate(b.createdAt)}
+                    {range(b) ? `${range(b)} · ` : ''}
+                    {b.count}장{b.createdAt ? ` · ${formatDate(b.createdAt)}` : ''}
                   </span>
                 </span>
                 <button
@@ -147,18 +164,20 @@ export function QrBatchPage() {
               </li>
             ))}
           </ul>
-        </div>
-      )}
+        )}
+      </div>
 
-      <form className="card form" onSubmit={voidQr}>
-        <h2 className="card__title">QR 폐기</h2>
-        <p className="hint">분실하거나 잘못 인쇄된 QR은 폐기하세요. 폐기한 QR은 스캔해도 쓰이지 않습니다.</p>
+      <form className="card form" onSubmit={voidLabel}>
+        <h2 className="card__title">라벨 폐기</h2>
+        <p className="hint">
+          분실하거나 잘못 인쇄된 라벨은 폐기하세요. 폐기한 번호는 스캔해도 쓰이지 않습니다.
+        </p>
         <label>
-          QR 값
+          자산 번호
           <input
             value={voidValue}
             onChange={(e) => setVoidValue(e.target.value)}
-            placeholder="NR1:…"
+            placeholder="NB26110001"
             spellCheck={false}
             required
           />

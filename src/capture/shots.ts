@@ -69,8 +69,8 @@ export const QUALITY_REASON_TEXT: Record<string, string> = {
   too_dark: '너무 어두워요. 조명을 켜거나 밝은 곳에서 찍어 주세요.',
   too_bright: '빛이 너무 강해요. 반사가 덜한 각도로 찍어 주세요.',
   out_of_frame: '노트북이 틀을 벗어났어요. 전체가 틀 안에 들어오게 해 주세요.',
-  qr_not_found: '상판 QR이 보이지 않아요. QR이 가려지지 않게 찍어 주세요.',
-  multiple_qr: 'QR이 여러 개 찍혔어요. 다른 노트북이 함께 찍히지 않게 해 주세요.',
+  qr_not_found: '상판 자산 번호 라벨이 보이지 않아요. 라벨이 가려지지 않게 찍어 주세요.',
+  multiple_qr: '라벨이 여러 개 찍혔어요. 다른 노트북이 함께 찍히지 않게 해 주세요.',
 };
 
 export function reasonText(reason: string): string {

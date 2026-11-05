@@ -5,7 +5,7 @@ const MENU: { to: string; label: string; icon: IconName; end?: boolean }[] = [
   { to: '/admin', label: '관리 홈', icon: 'home', end: true },
   { to: '/admin/devices', label: '노트북', icon: 'laptop' },
   { to: '/admin/models', label: '모델·촬영 컷', icon: 'layers' },
-  { to: '/admin/qr', label: 'QR 스티커', icon: 'qr' },
+  { to: '/admin/qr', label: '자산 번호 라벨', icon: 'barcode' },
 ];
 
 /** 관리자 화면 틀. 넓은 화면에서는 왼쪽 메뉴, 휴대폰에서는 위쪽 가로 메뉴로 보인다. */

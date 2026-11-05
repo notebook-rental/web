@@ -153,8 +153,8 @@ describe('CaptureScreen', () => {
       expect(await screen.findByText(text)).toBeInTheDocument();
     };
     await shoot(/틀을 벗어났어요/);
-    await shoot('다른 노트북의 QR입니다. 이 컷은 저장하지 않았습니다.');
-    await shoot(/QR이 여러 개 찍혔어요/);
+    await shoot('다른 노트북의 라벨입니다. 이 컷은 저장하지 않았습니다.');
+    await shoot(/라벨이 여러 개 찍혔어요/);
     await shoot('서버 오류');
     await shoot('사유 없는 품질 미달');
     expect(screen.getAllByText('다시 찍기').length).toBeGreaterThan(0);
@@ -163,13 +163,15 @@ describe('CaptureScreen', () => {
   it('상판 컷에서 폰이 읽은 QR이 스캔한 것과 다르거나 여러 개면 올리지 않는다(FR-045, FR-009)', async () => {
     const { server } = setup({}, {}, [['NR1:0123456789'], [QR, 'NR1:0123456789'], ['hello']]);
     fireEvent.click(await shutter());
-    expect(await screen.findByText(/다른 노트북의 QR입니다. 처음 스캔한/)).toBeInTheDocument();
+    expect(await screen.findByText(/다른 노트북의 라벨입니다. 처음 스캔한/)).toBeInTheDocument();
     fireEvent.click(await shutter());
-    expect(await screen.findByText(/QR이 여러 개 찍혔어요/)).toBeInTheDocument();
+    expect(await screen.findByText(/라벨이 여러 개 찍혔어요/)).toBeInTheDocument();
     expect(server.callsTo('POST', '/inspections/1/photos')).toHaveLength(0);
-    // 시스템 QR이 아닌 값만 읽히면 서버 판단에 맡기고 올린다.
+    // 자산 번호 모양의 값(다른 바코드일 수도 있다)은 서버가 등록된 번호로 판단하도록 함께 올린다.
     fireEvent.click(await shutter());
     await waitFor(() => expect(server.callsTo('POST', '/inspections/1/photos')).toHaveLength(1));
+    const form = server.callsTo('POST', '/inspections/1/photos')[0].body as FormData;
+    expect(form.get('decodedQrValues')).toBe('hello');
   });
 
   it('QR 해독이 실패해도 서버에 맡기고 올린다', async () => {

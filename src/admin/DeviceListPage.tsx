@@ -121,7 +121,8 @@ export function DeviceListPage() {
                   <span className="row__main">
                     <strong>{d.assetNo}</strong>
                     <span className="muted">
-                      {d.model ? `${d.model.manufacturer} ${d.model.name}` : '모델 정보 없음'} · {d.serialNo}
+                      {d.model ? `${d.model.manufacturer} ${d.model.name}` : '모델 정보 없음'}
+                      {d.serialNo ? ` · ${d.serialNo}` : ''}
                     </span>
                   </span>
                   <span className="row__meta">

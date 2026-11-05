@@ -44,7 +44,7 @@ export function LoginPage() {
         <ul className="login__points">
           <li>
             <Icon name="scanQr" size={18} />
-            QR 한 번으로 노트북 찾기
+            라벨 스캔 한 번으로 노트북 찾기
           </li>
           <li>
             <Icon name="camera" size={18} />
@@ -62,7 +62,7 @@ export function LoginPage() {
             <Icon name="laptop" size={28} />
           </span>
           <h1>노트북 반납 검사</h1>
-          <p className="muted">QR을 찍고 8컷만 촬영하면 대여 때와 비교해 손상을 찾아 드려요.</p>
+          <p className="muted">자산 번호 라벨을 찍고 8컷만 촬영하면 대여 때와 비교해 손상을 찾아 드려요.</p>
         </div>
         <form className="form" onSubmit={submit}>
           <label>

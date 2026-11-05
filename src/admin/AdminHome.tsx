@@ -4,7 +4,7 @@ import { ApiError } from '../api/client';
 import { ResultCode } from '../api/resultCodes';
 import { useServices } from '../app/services';
 import { goToScanResult } from '../scan/navigation';
-import { isSystemQr, normalizeQrValue } from '../scan/qrValue';
+import { isLabelValue, normalizeQrValue } from '../scan/qrValue';
 import { Icon, type IconName } from '../shared/ui/Icon';
 
 type Counts = { devices: number | null; models: number | null; batches: number | null };
@@ -44,7 +44,7 @@ export function AdminHome() {
       <div className="tiles">
         <Tile to="/admin/devices" icon="laptop" label="등록된 노트북" value={counts.devices} unit="대" />
         <Tile to="/admin/models" icon="layers" label="노트북 모델" value={counts.models} unit="종" />
-        <Tile to="/admin/qr" icon="qr" label="QR 스티커 묶음" value={counts.batches} unit="묶음" />
+        <Tile to="/admin/qr" icon="qr" label="자산 번호 라벨 묶음" value={counts.batches} unit="묶음" />
       </div>
 
       <RegisterGuide />
@@ -67,7 +67,7 @@ function Tile(props: { to: string; icon: IconName; label: string; value: number 
   );
 }
 
-/** 새 노트북 등록 안내(FR-046, FR-047). 스캔이 안 되는 PC에서는 QR 값을 직접 넣어 시작할 수 있다. */
+/** 새 노트북 등록 안내(FR-046, FR-047, spec 002). 스캔이 안 되는 PC에서는 자산 번호를 직접 넣어 시작할 수 있다. */
 function RegisterGuide() {
   const { endpoints } = useServices();
   const navigate = useNavigate();
@@ -78,8 +78,8 @@ function RegisterGuide() {
   async function submit(e: FormEvent) {
     e.preventDefault();
     const value = normalizeQrValue(qr);
-    if (!isSystemQr(value)) {
-      setError('QR 값 형식이 올바르지 않습니다. 예: NR1:7K3M9QX2TD');
+    if (!isLabelValue(value)) {
+      setError('자산 번호 형식이 올바르지 않습니다. 예: NB26110001');
       return;
     }
     setBusy(true);
@@ -87,18 +87,18 @@ function RegisterGuide() {
     try {
       const scan = await endpoints.scan(value);
       if (scan.nextAction === 'blocked') {
-        setError('폐기된 QR입니다. 새 QR을 붙여 주세요.');
+        setError('폐기된 라벨입니다. 라벨을 다시 출력해 붙여 주세요.');
         setBusy(false);
         return;
       }
-      // 손으로 넣은 값이라 QR 스캔으로 기록하지 않는다(FR-008). 미등록 QR이면 등록 화면으로 간다.
+      // 손으로 넣은 값이라 라벨 스캔으로 기록하지 않는다(FR-008). 처음 보는 번호면 등록 화면으로 간다.
       if (scan.nextAction === 'register')
         navigate(`/register?qr=${encodeURIComponent(scan.qrValue ?? value)}`);
       else goToScanResult(navigate, scan, 'manual');
     } catch (err) {
       setError(
         err instanceof ApiError && err.resultCode === ResultCode.QR_NOT_ISSUED
-          ? '이 시스템에서 발급한 QR이 아닙니다.'
+          ? '자산 번호로 쓸 수 없는 값입니다.'
           : err instanceof Error
             ? err.message
             : '조회하지 못했습니다.',
@@ -112,18 +112,19 @@ function RegisterGuide() {
       <h2 className="card__title">새 노트북 등록</h2>
       <ol className="steps">
         <li>
-          <strong>QR 스티커 출력</strong>
+          <strong>자산 번호 라벨 출력</strong>
           <span>
-            <Link to="/admin/qr">QR 스티커</Link> 화면에서 빈 QR을 발급하고 PDF로 인쇄합니다.
+            <Link to="/admin/qr">자산 번호 라벨</Link> 화면에서 번호를 발급하고 QR이나 바코드로 인쇄합니다.
+            이미 자산 번호 라벨이 붙어 있는 노트북은 이 단계를 건너뜁니다.
           </span>
         </li>
         <li>
           <strong>노트북에 붙이고 스캔</strong>
-          <span>상판에 스티커를 붙이고 휴대폰으로 스캔하면 등록 화면이 열립니다.</span>
+          <span>상판에 라벨을 붙이고 휴대폰으로 스캔하면 자산 번호가 채워진 등록 화면이 열립니다.</span>
         </li>
         <li>
-          <strong>모델·자산 번호 입력</strong>
-          <span>모델을 고르고 자산 번호와 시리얼을 넣어 저장합니다.</span>
+          <strong>모델 선택</strong>
+          <span>모델을 고르고 저장합니다. 시리얼 번호는 선택입니다.</span>
         </li>
         <li>
           <strong>기준 사진 8컷 촬영</strong>
@@ -133,16 +134,16 @@ function RegisterGuide() {
       <div className="actions">
         <Link to="/" className="btn btn--primary">
           <Icon name="scan" size={18} />
-          QR 스캔으로 등록
+          라벨 스캔으로 등록
         </Link>
       </div>
       <form className="form form--inline" onSubmit={submit}>
         <label>
-          카메라가 없으면 QR 값을 직접 입력
+          카메라가 없으면 자산 번호를 직접 입력
           <input
             value={qr}
             onChange={(e) => setQr(e.target.value)}
-            placeholder="NR1:7K3M9QX2TD"
+            placeholder="NB26110001"
             autoCapitalize="characters"
             spellCheck={false}
           />

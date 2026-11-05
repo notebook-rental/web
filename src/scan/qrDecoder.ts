@@ -1,14 +1,20 @@
 import { grabImageData } from '../camera/frame';
 
 /**
- * 카메라 프레임에서 바코드(QR 등)를 읽는다. 사진은 저장하지 않는다(FR-006).
+ * 카메라 프레임에서 자산 번호 라벨(QR 또는 바코드)을 읽는다. 사진은 저장하지 않는다(FR-006).
  *
  * 1순위: 브라우저 내장 BarcodeDetector(안드로이드 Chrome 등). 빠르고 추가 다운로드가 없다.
  * 2순위: zxing-wasm(WebAssembly)을 Web Worker에서 실행. iOS Safari처럼 내장 기능이 없을 때 쓴다.
  *        Worker에서 돌리므로 해독 중에도 화면이 멈추지 않는다.
  */
 
-export type BarcodeKind = 'qr' | 'serial';
+/**
+ * 무엇을 읽을지. 찾는 형식이 적을수록 빠르고 잘못 읽는 일이 줄어든다.
+ * - auto: QR과 바코드 모두(기본). 시리얼 라벨 읽기에도 쓴다
+ * - qr: QR만
+ * - barcode: 1차원 바코드(Code128, Code39)만
+ */
+export type BarcodeKind = 'auto' | 'qr' | 'barcode';
 
 export interface Decoder {
   decode(source: HTMLVideoElement | ImageBitmap | Blob): Promise<string[]>;
@@ -18,9 +24,10 @@ export interface Decoder {
 // BarcodeDetector 이름 → zxing-wasm 이름
 const FORMATS: Record<BarcodeKind, { native: string[]; zxing: string[] }> = {
   qr: { native: ['qr_code'], zxing: ['QRCode'] },
-  serial: {
-    native: ['code_128', 'code_39', 'data_matrix', 'qr_code'],
-    zxing: ['Code128', 'Code39', 'DataMatrix', 'QRCode'],
+  barcode: { native: ['code_128', 'code_39'], zxing: ['Code128', 'Code39'] },
+  auto: {
+    native: ['qr_code', 'code_128', 'code_39', 'data_matrix'],
+    zxing: ['QRCode', 'Code128', 'Code39', 'DataMatrix'],
   },
 };
 

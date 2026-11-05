@@ -44,6 +44,51 @@ describe('ScanScreen', () => {
     await waitFor(() => expect(readLocation(container).path).toBe(`/register?qr=${encodeURIComponent(QR)}`));
   });
 
+  it('처음 보는 자산 번호 바코드면 그 번호로 등록 화면에 간다(spec 002)', async () => {
+    const server = createFakeServer().on('GET', '/scan/NB26110001', {
+      qrValue: 'NB26110001',
+      nextAction: 'register',
+    });
+    const { factory } = fakeDecoderFactory([['NB26110001']]);
+    const { container } = renderScreen(<ScanScreen decoderFactory={factory} />, { fetchFn: server.fetchFn });
+    await waitFor(() => expect(readLocation(container).path).toBe('/register?qr=NB26110001'));
+  });
+
+  it('스캔 방식(자동/QR/바코드)을 고르면 그 형식만 읽고, 고른 것을 기억한다', async () => {
+    const { factory } = fakeDecoderFactory([[]]);
+    renderScreen(<ScanScreen decoderFactory={factory} />, { fetchFn: createFakeServer().fetchFn });
+    await waitFor(() => expect(factory).toHaveBeenCalledWith('auto'));
+    expect(screen.getByRole('tab', { name: '자동' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('tab', { name: '바코드' }));
+    await waitFor(() => expect(factory).toHaveBeenLastCalledWith('barcode'));
+    expect(localStorage.getItem('scanMode')).toBe('barcode');
+    fireEvent.click(screen.getByRole('tab', { name: 'QR' }));
+    await waitFor(() => expect(factory).toHaveBeenLastCalledWith('qr'));
+  });
+
+  it('기억한 스캔 방식으로 시작한다', async () => {
+    localStorage.setItem('scanMode', 'barcode');
+    const { factory } = fakeDecoderFactory([[]]);
+    renderScreen(<ScanScreen decoderFactory={factory} />, { fetchFn: createFakeServer().fetchFn });
+    await waitFor(() => expect(factory).toHaveBeenCalledWith('barcode'));
+    expect(screen.getByRole('tab', { name: '바코드' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('저장소를 못 쓰는 브라우저에서도 스캔 방식을 바꿀 수 있다', async () => {
+    const get = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    const set = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    const { factory } = fakeDecoderFactory([[]]);
+    renderScreen(<ScanScreen decoderFactory={factory} />, { fetchFn: createFakeServer().fetchFn });
+    fireEvent.click(screen.getByRole('tab', { name: 'QR' }));
+    await waitFor(() => expect(factory).toHaveBeenLastCalledWith('qr'));
+    get.mockRestore();
+    set.mockRestore();
+  });
+
   it('폐기된 QR이면 안내하고 머문다', async () => {
     const server = createFakeServer().on('GET', `/scan/${encodeURIComponent(QR)}`, {
       qrStatus: 'void',
@@ -51,7 +96,7 @@ describe('ScanScreen', () => {
     });
     const { factory } = fakeDecoderFactory([[QR]]);
     renderScreen(<ScanScreen decoderFactory={factory} />, { fetchFn: server.fetchFn });
-    expect(await screen.findByText(/폐기된 QR/)).toBeInTheDocument();
+    expect(await screen.findByText(/폐기된 라벨/)).toBeInTheDocument();
     await new Promise((r) => setTimeout(r, 300));
     expect(server.calls).toHaveLength(1);
   });
@@ -65,7 +110,7 @@ describe('ScanScreen', () => {
     vi.spyOn(Date, 'now').mockImplementation(() => now);
     const { factory, decoder } = fakeDecoderFactory([[QR]]);
     renderScreen(<ScanScreen decoderFactory={factory} />, { fetchFn: server.fetchFn });
-    expect(await screen.findByText('이 시스템에서 발급한 QR이 아닙니다.')).toBeInTheDocument();
+    expect(await screen.findByText(/자산 번호로 쓸 수 없는 값입니다/)).toBeInTheDocument();
     const framesAtError = (decoder.decode as ReturnType<typeof vi.fn>).mock.calls.length;
     await waitFor(() =>
       expect((decoder.decode as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(
@@ -83,10 +128,10 @@ describe('ScanScreen', () => {
     const server = createFakeServer();
     const { factory } = fakeDecoderFactory([[QR, 'NR1:0123456789']]);
     renderScreen(<ScanScreen decoderFactory={factory} />, { fetchFn: server.fetchFn });
-    expect(await screen.findByText(/QR이 여러 개/)).toBeInTheDocument();
-    const other = fakeDecoderFactory([['hello']]);
+    expect(await screen.findByText(/라벨이 여러 개/)).toBeInTheDocument();
+    const other = fakeDecoderFactory([['https://example.com']]);
     renderScreen(<ScanScreen decoderFactory={other.factory} />, { fetchFn: server.fetchFn });
-    expect(await screen.findByText(/이 서비스의 QR이 아닙니다/)).toBeInTheDocument();
+    expect(await screen.findByText(/자산 번호 라벨이 아닙니다/)).toBeInTheDocument();
   });
 
   it('한 프레임만 읽히면 읽는 중이라고 알린다', async () => {
