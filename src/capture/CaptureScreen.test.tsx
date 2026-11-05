@@ -536,24 +536,20 @@ describe('CaptureScreen', () => {
       qrStatus: 'assigned',
       device: { id: 5, assetNo: 'A-001', status: 'available' },
     };
-    const { container } = setup(
-      { kind: 'register', rentalId: undefined, deviceId: 5 },
-      {},
-      [[QR]],
-      (s) =>
-        s
-          .on(
-            'GET',
-            '/inspections/1',
-            inspection({
-              kind: 'register',
-              status: 'completed',
-              capturedShots: ['top', 'bottom'],
-              photos: [{ id: 101, shotType: 'top', originalConfirmed: true }],
-            }),
-          )
-          .on('GET', '/inspections/1/photos/101/image', () => new Response(new Blob(['j']), { status: 200 }))
-          .on('GET', `/scan/${encodeURIComponent(QR)}`, scan),
+    const { container } = setup({ kind: 'register', rentalId: undefined, deviceId: 5 }, {}, [[QR]], (s) =>
+      s
+        .on(
+          'GET',
+          '/inspections/1',
+          inspection({
+            kind: 'register',
+            status: 'completed',
+            capturedShots: ['top', 'bottom'],
+            photos: [{ id: 101, shotType: 'top', originalConfirmed: true }],
+          }),
+        )
+        .on('GET', '/inspections/1/photos/101/image', () => new Response(new Blob(['j']), { status: 200 }))
+        .on('GET', `/scan/${encodeURIComponent(QR)}`, scan),
     );
     fireEvent.click(await shutter());
     await screen.findByText(/1\/2/);
