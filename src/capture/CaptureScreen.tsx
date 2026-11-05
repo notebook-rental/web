@@ -635,6 +635,28 @@ function scrollIntoViewIfNeeded(el: HTMLElement | null) {
   el?.scrollIntoView?.({ block: 'nearest', inline: 'center', behavior: 'smooth' });
 }
 
+/** 반납 비교 결과 한 줄의 색: 후보 있음(주의)·직접 확인(경고)·변화 없음(좋음)·진행 중 */
+function resultTone(s: ShotState): 'warn' | 'find' | 'ok' | 'wait' {
+  if (s.comparison === 'not_comparable' || s.comparison === 'failed') return 'warn';
+  if (s.comparison === 'done') return s.findingCount ? 'find' : 'ok';
+  return 'wait';
+}
+
+function resultText(s: ShotState): string {
+  if (s.comparison === 'not_comparable') return '자동 비교 못 함 · 직접 확인';
+  if (s.comparison === 'failed') return '비교 오류 · 직접 확인';
+  if (s.comparison === 'done') return s.findingCount ? `손상 후보 ${s.findingCount}건` : '변화 없음';
+  if (s.comparison === 'running') return '비교 중';
+  return '비교 대기';
+}
+
+function resultSummary(total: number, manual: number): string {
+  const direct = manual > 0 ? ` 자동 비교를 못 한 ${manual}개 컷은 직접 봐 주세요.` : '';
+  if (total > 0) return `손상 후보 ${total}건을 찾았어요. 검토에서 하나씩 판정해 주세요.${direct}`;
+  if (manual > 0) return `자동으로 찾은 손상 후보는 없어요.${direct}`;
+  return '달라진 곳을 찾지 못했어요. 검토에서 한 번 훑어보고 완료해 주세요.';
+}
+
 function SubmittedView(props: {
   kind: InspectionKind;
   phase: Phase;
@@ -648,6 +670,10 @@ function SubmittedView(props: {
 }) {
   const { kind, phase, shots, pendingOriginals, failedOriginals } = props;
   const total = shots.reduce((n, s) => n + (s.findingCount ?? 0), 0);
+  const manual = shots.filter((s) => s.comparison === 'not_comparable' || s.comparison === 'failed').length;
+  const compared = shots.filter(
+    (s) => s.comparison && s.comparison !== 'queued' && s.comparison !== 'running',
+  ).length;
   return (
     <section className="screen">
       {kind === 'register' ? (
@@ -670,26 +696,36 @@ function SubmittedView(props: {
         </>
       ) : (
         <>
-          <h1>{phase === 'analyzing' ? '비교 중…' : '비교 완료'}</h1>
-          <ul className="result-list card">
-            {shots.map((s) => (
-              <li key={s.code}>
-                <span>{shotGuide(s.code).name}</span>
-                <span>{chipText(s, true)}</span>
-              </li>
-            ))}
-          </ul>
-          {phase === 'analyzing' ? (
-            <p className="hint" aria-live="polite">
-              남은 컷의 비교가 끝나면 바로 검토를 시작할 수 있어요.
+          <h1>{phase === 'analyzing' ? '대여 때 사진과 비교하는 중…' : '비교 완료'}</h1>
+          {phase === 'analyzing' && (
+            <p className="muted" aria-live="polite">
+              {shots.length}컷 중 {compared}컷 비교를 마쳤어요. 끝나면 바로 검토를 시작할 수 있어요.
             </p>
-          ) : (
+          )}
+          <ul className="result-list card" aria-label="컷별 비교 결과">
+            {shots.map((s) => {
+              const tone = resultTone(s);
+              return (
+                <li key={s.code} className={`result-list__item result-list__item--${tone}`}>
+                  <span>{shotGuide(s.code).name}</span>
+                  <span className="result-list__status">
+                    {tone === 'warn' && <Icon name="alert" size={16} />}
+                    {tone === 'ok' && <Icon name="check" size={16} />}
+                    {resultText(s)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          {phase !== 'analyzing' && (
             <>
-              <p>
-                {total > 0
-                  ? `손상 후보 ${total}건을 찾았어요.`
-                  : '변화가 없어 보여요. 확인 후 완료해 주세요.'}
-              </p>
+              <p className="result-summary">{resultSummary(total, manual)}</p>
+              {manual > 0 && (
+                <p className="hint">
+                  "자동 비교 못 함"은 사진의 각도·빛 때문에 두 사진을 맞춰 보지 못했다는 뜻이에요. 손상이
+                  없다는 뜻은 아니니 검토 화면에서 두 사진을 눈으로 비교해 주세요.
+                </p>
+              )}
               <button type="button" className="btn btn--primary btn--big" onClick={props.onReview}>
                 검토 시작
                 <Icon name="arrow" size={20} />

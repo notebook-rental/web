@@ -406,9 +406,41 @@ describe('CaptureScreen', () => {
     expect(await screen.findByText('후보 2')).toBeInTheDocument();
     fireEvent.click(await screen.findByRole('button', { name: '촬영 제출' }));
     expect(await screen.findByText('비교 완료')).toBeInTheDocument();
-    expect(screen.getByText('손상 후보 2건을 찾았어요.')).toBeInTheDocument();
+    expect(screen.getByText('손상 후보 2건을 찾았어요. 검토에서 하나씩 판정해 주세요.')).toBeInTheDocument();
+    expect(screen.getByText('손상 후보 2건')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '검토 시작' }));
     expect(readLocation(container).path).toBe('/review/1');
+  });
+
+  it('반납 비교 결과: 자동 비교를 못 한 컷은 "직접 확인"으로 보여 주고, 후보가 없어도 변화 없다고 말하지 않는다', async () => {
+    let streamed = false;
+    setup({ kind: 'checkin', inspectionId: 1, requiredShots: ['top', 'bottom'] }, {}, [], (server) => {
+      server.on('GET', '/inspections/1/events', () => {
+        if (streamed) return new Promise<Response>(() => undefined);
+        streamed = true;
+        return new Response(
+          'id: 1\nevent: comparison\ndata: {"shotType":"top","status":"done","findingCount":0}\n\n' +
+            'id: 2\nevent: comparison\ndata: {"shotType":"bottom","status":"not_comparable"}\n\n',
+          { status: 200 },
+        );
+      });
+      server.on(
+        'GET',
+        '/inspections/1',
+        inspection({
+          kind: 'checkin',
+          status: 'reviewing',
+          requiredShots: ['top', 'bottom'],
+          capturedShots: ['top', 'bottom'],
+        }),
+      );
+    });
+    expect(await screen.findByText('자동 비교 못 함 · 직접 확인')).toBeInTheDocument();
+    expect(screen.getByText('변화 없음')).toBeInTheDocument();
+    expect(
+      screen.getByText('자동으로 찾은 손상 후보는 없어요. 자동 비교를 못 한 1개 컷은 직접 봐 주세요.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/달라진 곳을 찾지 못했어요/)).toBeNull();
   });
 
   it('원본이 남았으면 먼저 올리고 제출한다. 못 올리면 제출하지 않고 이유를 알려 준다', async () => {
@@ -453,7 +485,8 @@ describe('CaptureScreen', () => {
     // 인터넷이 돌아오면 제출을 다시 누를 때 원본부터 올리고 제출한다.
     put.mockResolvedValue(new Response(null, { status: 200 }));
     fireEvent.click(screen.getByRole('button', { name: '촬영 제출' }));
-    expect(await screen.findByText('비교 중…')).toBeInTheDocument();
+    expect(await screen.findByText('대여 때 사진과 비교하는 중…')).toBeInTheDocument();
+    expect(screen.getByText(/1컷 중 0컷 비교를 마쳤어요/)).toBeInTheDocument();
     const list = screen.getByRole('list');
     expect(within(list).getByText('상판')).toBeInTheDocument();
     expect(screen.queryByText(/업로드 남음/)).toBeNull();

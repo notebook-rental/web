@@ -170,6 +170,21 @@ export interface Inspection {
   // 계약 보완
   deviceId?: number;
   photos?: Photo[];
+  /** 반납 검사의 컷별 비교 상태(대여·등록 검사는 빈 목록) */
+  comparisons?: ShotComparison[];
+}
+
+/** 컷 하나의 자동 비교 상태(GET /inspections/{id} 의 comparisons) */
+export interface ShotComparison {
+  shotType: string;
+  /** 아직 비교를 시작하지 않았으면 null */
+  status: ComparisonStatus | null;
+  /** 자동 비교 불가(not_comparable)일 때 그 이유 코드(예: too_few_matches) */
+  reason?: string | null;
+  /** done 일 때 비교 방식: aligned(정확히 겹침) 또는 patch(영역끼리만 맞춤, 겹쳐 보기 없음, spec 004) */
+  method?: 'aligned' | 'patch' | null;
+  /** 비교 기준이 된 대여 때 사진(ml 이 가장 닮았다고 고른 사진일 수 있다). 후보가 없는 컷도 대여 때 사진을 보여 주려고 받는다 */
+  baselinePhotoUrl?: string | null;
 }
 
 export type VerdictValue = 'new_damage' | 'existing_damage' | 'false_positive';

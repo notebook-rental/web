@@ -1089,18 +1089,21 @@ input[type='checkbox'] {
   flex-direction: column;
   gap: 0.75rem;
 }
+/* 폰에서도 대여 시·반납 시 두 장이 한 화면에 들어오게 늘 두 칸으로 놓는다. 자세히 볼 때는 눌러서 크게 본다 */
 .viewer__side {
   display: grid;
-  gap: 0.75rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
 }
 @media (min-width: 640px) {
   .viewer__side {
-    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
   }
 }
 .viewer figure {
   margin: 0;
-  padding: 0.5rem;
+  min-width: 0;
+  padding: 0.4rem;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -2184,4 +2187,247 @@ button.row:hover {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+/* ───── 반납 비교·검토 다듬기(spec 001 FR-049~FR-053) ───── */
+.viewer__photo {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+/* 후보 상자 그림은 상자만 눌리고, 나머지 자리를 누르면 사진이 크게 열린다 */
+.viewer__shapes {
+  pointer-events: none;
+}
+.viewer__shapes polygon {
+  pointer-events: auto;
+}
+.viewer__empty {
+  margin: 0;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 4 / 3;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 0.5rem;
+}
+.viewer__tip {
+  margin: -0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+.shape-tag {
+  position: absolute;
+  transform: translate(-40%, -60%);
+  min-width: 1.4rem;
+  height: 1.4rem;
+  padding: 0 0.3rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #f2b33d;
+  color: #1b1b1b;
+  font-size: 0.78rem;
+  font-weight: 800;
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+}
+.shape-tag.is-selected {
+  background: var(--primary);
+  color: #fff;
+}
+.shape-tag--new_damage {
+  background: var(--danger);
+  color: #fff;
+}
+.shape-tag--false_positive {
+  background: var(--ok);
+  color: #fff;
+}
+.shape-tag--existing_damage {
+  background: #8a8f98;
+  color: #fff;
+}
+.photo-dialog__stage {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 0 8px 8px;
+}
+.photo-dialog__frame {
+  display: inline-block;
+  max-width: 100%;
+}
+.photo-dialog__frame img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100dvh - 76px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  width: auto;
+  height: auto;
+  border-radius: 8px;
+}
+.photo-dialog__bar .tabs {
+  flex: 1;
+}
+.tabs--dark {
+  background: rgb(255 255 255 / 0.12);
+}
+.tabs--dark button {
+  color: rgb(255 255 255 / 0.75);
+  min-height: 44px;
+}
+.tabs--dark button[aria-selected='true'] {
+  background: #fff;
+  color: #111;
+}
+.count--warn {
+  background: var(--danger);
+  color: #fff;
+}
+.review-banner,
+.shot-status {
+  margin: 0;
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.92rem;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.review-banner,
+.shot-status--warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 30%, transparent);
+}
+.review-banner svg,
+.shot-status svg {
+  flex: none;
+  margin-top: 0.1rem;
+}
+.shot-status strong {
+  display: block;
+  margin-bottom: 0.15rem;
+}
+.shot-status p {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.5;
+}
+.shot-status--ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 30%, transparent);
+}
+.shot-status--info {
+  display: block;
+  color: var(--muted);
+}
+.verdict-legend {
+  margin: 0;
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.verdict-legend div {
+  display: flex;
+  gap: 0.4rem;
+}
+.verdict-legend dt {
+  flex: none;
+  min-width: 4.2rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.verdict-legend dd {
+  margin: 0;
+}
+@media (min-width: 640px) {
+  .verdict-legend {
+    grid-template-columns: repeat(3, auto);
+    justify-content: start;
+    column-gap: 1.25rem;
+  }
+}
+.finding__head .finding__no {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  background: #f2b33d;
+  color: #1b1b1b;
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+.finding__head .finding__no--new_damage {
+  background: var(--danger);
+  color: #fff;
+}
+.finding__head .finding__no--false_positive {
+  background: var(--ok);
+  color: #fff;
+}
+.finding__head .finding__no--existing_damage {
+  background: #8a8f98;
+  color: #fff;
+}
+.finding__hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.review__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+.review__actions .btn {
+  flex: 1 1 auto;
+}
+.result-list__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-weight: 600;
+  text-align: right;
+}
+.result-list__item--warn .result-list__status {
+  color: var(--warn);
+}
+.result-list__item--find .result-list__status {
+  color: var(--danger);
+}
+.result-list__item--ok .result-list__status {
+  color: var(--ok);
+}
+.result-list__item--wait .result-list__status {
+  color: var(--muted);
+}
+.result-summary {
+  margin: 0;
+  font-weight: 600;
+}
+.review-banner {
+  padding: 0.55rem 0.8rem;
+  align-items: center;
+  font-weight: 600;
+}
+.review__lead {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
