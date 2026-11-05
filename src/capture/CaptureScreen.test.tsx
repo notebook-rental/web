@@ -127,6 +127,38 @@ describe('CaptureScreen', () => {
     expect(await screen.findByText('대여 촬영 완료')).toBeInTheDocument();
   });
 
+  it('기준 사진 촬영(spec 002 US5): 대여 건 없이 노트북으로 검사를 만들고, 다 찍으면 완료를 알린다', async () => {
+    const { server } = setup({ kind: 'register', rentalId: undefined, deviceId: 5 });
+    await waitFor(() => expect(server.callsTo('POST', '/inspections')).toHaveLength(1));
+    expect(server.callsTo('POST', '/inspections')[0].body).toEqual({
+      deviceId: 5,
+      kind: 'register',
+      identifiedBy: 'qr',
+      scannedQrValue: QR,
+    });
+    expect(screen.getByText(/기준 사진 촬영 · 0\/2 · A-001/)).toBeInTheDocument();
+    fireEvent.click(await shutter());
+    await screen.findByText(/기준 사진 촬영 · 1\/2/);
+    fireEvent.click(await shutter());
+    fireEvent.click(await screen.findByRole('button', { name: '촬영 제출' }));
+    expect(await screen.findByText('기준 사진 촬영 완료')).toBeInTheDocument();
+  });
+
+  it('기준 사진 촬영인데 노트북이 없거나, 대여·반납인데 대여 건이 없으면 첫 화면으로', () => {
+    for (const state of [
+      { kind: 'register', identifiedBy: 'qr', requiredShots: [], deviceLabel: 'x' },
+      { kind: 'checkout', deviceId: 5, identifiedBy: 'qr', requiredShots: [], deviceLabel: 'x' },
+    ]) {
+      const { container, unmount } = renderScreen(<CaptureScreen />, {
+        fetchFn: createFakeServer().fetchFn,
+        path: '/capture',
+        state,
+      });
+      expect(readLocation(container).path).toBe('/');
+      unmount();
+    }
+  });
+
   it('폰의 1차 품질 검사에 걸리면 사유를 보여 주고, 그래도 올리기로 서버에 맡길 수 있다', async () => {
     const { server } = setup({}, { processShot: async () => processed(['blurry', 'too_dark']) });
     fireEvent.click(await shutter());

@@ -26,7 +26,10 @@ import { useUploadQueue } from './UploadQueueProvider';
 /** 노트북 화면에서 촬영 화면으로 넘기는 정보 */
 export interface CaptureRequest {
   kind: InspectionKind;
-  rentalId: number;
+  /** 대여·반납 검사 */
+  rentalId?: number;
+  /** 등록 기준 촬영(kind=register) */
+  deviceId?: number;
   identifiedBy: 'qr' | 'manual';
   scannedQrValue?: string;
   inspectionId?: number;
@@ -40,6 +43,12 @@ export interface CaptureDeps {
   captureStill?: (video: HTMLVideoElement, stream: MediaStream | null) => Promise<Blob>;
 }
 
+const KIND_TITLE: Record<InspectionKind, string> = {
+  checkout: '대여 촬영',
+  checkin: '반납 촬영',
+  register: '기준 사진 촬영',
+};
+
 type Phase = 'capturing' | 'submitting' | 'analyzing' | 'reviewing' | 'done';
 
 const TOP_SHOT = 'top';
@@ -47,7 +56,9 @@ const TOP_SHOT = 'top';
 export function CaptureScreen({ deps = {} }: { deps?: CaptureDeps }) {
   const location = useLocation();
   const request = location.state as CaptureRequest | null;
-  if (!request?.rentalId) return <Navigate to="/" replace />;
+  if (!request || (request.kind === 'register' ? !request.deviceId : !request.rentalId)) {
+    return <Navigate to="/" replace />;
+  }
   return <CaptureFlow request={request} deps={deps} />;
 }
 
@@ -95,7 +106,7 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
     const load = request.inspectionId
       ? endpoints.getInspection(request.inspectionId)
       : endpoints.createInspection({
-          rentalId: request.rentalId,
+          ...(request.kind === 'register' ? { deviceId: request.deviceId } : { rentalId: request.rentalId }),
           kind: request.kind,
           identifiedBy: request.identifiedBy,
           scannedQrValue: request.scannedQrValue,
@@ -296,7 +307,7 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
         <div className={`shot-overlay shot-overlay--${current?.code ?? 'none'}`} aria-hidden="true" />
         <div className="shot-title">
           <span>
-            {request.kind === 'checkout' ? '대여 촬영' : '반납 촬영'} · {doneCount}/{state.shots.length}
+            {KIND_TITLE[request.kind]} · {doneCount}/{state.shots.length}
             {request.deviceLabel ? ` · ${request.deviceLabel}` : ''}
           </span>
           <span className="progress" aria-hidden="true">
@@ -415,7 +426,17 @@ function SubmittedView(props: {
   const total = shots.reduce((n, s) => n + (s.findingCount ?? 0), 0);
   return (
     <section className="screen">
-      {kind === 'checkout' ? (
+      {kind === 'register' ? (
+        <>
+          <div className="done-mark" aria-hidden="true">
+            <Icon name="check" size={36} />
+          </div>
+          <h1>기준 사진 촬영 완료</h1>
+          <p className="muted">
+            등록할 때의 상태를 8컷으로 남겼습니다. 대여할 때는 대여 촬영을 한 번 더 합니다.
+          </p>
+        </>
+      ) : kind === 'checkout' ? (
         <>
           <div className="done-mark" aria-hidden="true">
             <Icon name="check" size={36} />

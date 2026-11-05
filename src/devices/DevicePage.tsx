@@ -4,7 +4,7 @@ import type { ScanResult } from '../api/types';
 import { useServices } from '../app/services';
 import type { CaptureRequest } from '../capture/CaptureScreen';
 import { DAMAGE_TYPE_TEXT, SEVERITY_TEXT, shotGuide } from '../capture/shots';
-import type { DevicePageState } from '../scan/navigation';
+import { registerCaptureRequest, type DevicePageState } from '../scan/navigation';
 import { STATUS_TEXT } from './labels';
 import { Icon } from '../shared/ui/Icon';
 import { downloadBlob } from '../shared/downloadBlob';
@@ -50,6 +50,7 @@ function DeviceView({ initial }: { initial: DevicePageState }) {
   }
 
   const damages = scan.existingDamages ?? [];
+  const registerRequest = registerCaptureRequest(scan, initial.identifiedBy, initial.scannedQrValue);
   const startLabel = scan.nextAction === 'checkout' ? '대여 촬영 시작' : '반납 촬영 시작';
 
   return (
@@ -80,6 +81,12 @@ function DeviceView({ initial }: { initial: DevicePageState }) {
               <dd className="mono">{device.qrValue}</dd>
             </>
           )}
+          {scan.registerPhotos && (
+            <>
+              <dt>기준 사진</dt>
+              <dd>{REGISTER_PHOTOS_TEXT[scan.registerPhotos]}</dd>
+            </>
+          )}
           <dt>식별</dt>
           <dd>{initial.identifiedBy === 'qr' ? '라벨 스캔' : '자산 번호 직접 입력'}</dd>
         </dl>
@@ -90,6 +97,16 @@ function DeviceView({ initial }: { initial: DevicePageState }) {
         <button type="button" className="btn btn--primary btn--big" onClick={startCapture}>
           <Icon name="camera" size={22} />
           {scan.inspectionId ? `${startLabel.replace(' 시작', '')} 이어서 하기` : startLabel}
+        </button>
+      )}
+      {registerRequest && (
+        <button
+          type="button"
+          className="btn btn--primary btn--big"
+          onClick={() => navigate('/capture', { state: registerRequest })}
+        >
+          <Icon name="camera" size={22} />
+          {registerRequest.inspectionId ? '기준 사진 이어서 찍기' : '기준 사진 촬영 (8컷)'}
         </button>
       )}
       {scan.nextAction === 'none' && (
@@ -122,6 +139,8 @@ function DeviceView({ initial }: { initial: DevicePageState }) {
     </section>
   );
 }
+
+const REGISTER_PHOTOS_TEXT = { none: '아직 안 찍음', capturing: '찍는 중', completed: '찍음' } as const;
 
 /** 대여 대기 건 만들기. 실제 대여 접수는 다른 시스템이 할 수 있지만, 매장에서 바로 만들 수 있게 둔다. */
 function CreateRental({ deviceId, onCreated }: { deviceId: number; onCreated(): Promise<void> }) {

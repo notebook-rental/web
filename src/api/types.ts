@@ -115,7 +115,13 @@ export interface ScanResult {
   inspectionId?: number;
   requiredShots?: string[];
   existingDamages?: DeviceDamage[];
+  /** 등록 기준 사진(spec 002 US5): 아직 안 찍음 / 찍는 중 / 다 찍음 */
+  registerPhotos?: RegisterPhotos | null;
+  /** 찍는 중인 등록 기준 촬영 검사(이어 찍기) */
+  registerInspectionId?: number | null;
 }
+
+export type RegisterPhotos = 'none' | 'capturing' | 'completed';
 
 export interface QrBatch {
   id: number;
@@ -131,7 +137,8 @@ export interface QrBatch {
 /** 라벨 출력 형식. 값(자산 번호)은 같고 모양만 다르다 */
 export type LabelFormat = 'qr' | 'barcode';
 
-export type InspectionKind = 'checkout' | 'checkin';
+/** register = 새 노트북을 등록하고 대여 건 없이 찍어 두는 기준 사진(spec 002 US5) */
+export type InspectionKind = 'checkout' | 'checkin' | 'register';
 export type InspectionStatus = 'capturing' | 'analyzing' | 'reviewing' | 'completed' | 'blocked';
 
 export interface Photo {
@@ -152,7 +159,8 @@ export interface PhotoUploaded extends Photo {
 
 export interface Inspection {
   id: number;
-  rentalId: number;
+  /** 등록 기준 촬영이면 없다 */
+  rentalId?: number | null;
   kind: InspectionKind;
   status: InspectionStatus;
   requiredShots: string[];

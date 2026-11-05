@@ -53,7 +53,10 @@ export function createEndpoints(api: ApiClient) {
     voidQr: (qrValue: string) => api.request<null>('POST', `/qr-tags/${enc(qrValue)}/void`),
 
     createInspection: (body: {
-      rentalId: number;
+      /** 대여·반납 검사 */
+      rentalId?: number;
+      /** 등록 기준 촬영(kind=register) */
+      deviceId?: number;
       kind: InspectionKind;
       identifiedBy: 'qr' | 'manual';
       scannedQrValue?: string;
