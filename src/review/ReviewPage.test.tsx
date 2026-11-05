@@ -88,7 +88,7 @@ describe('ReviewPage', () => {
     expect(complete).toBeDisabled();
 
     const card1 = screen.getByRole('listitem', { name: '후보 #1' });
-    expect(within(card1).getByText('신뢰도 82%')).toBeInTheDocument();
+    expect(within(card1).getByText('AI 확신 82%')).toBeInTheDocument();
     fireEvent.change(within(card1).getByLabelText('심각도'), { target: { value: 'moderate' } });
     fireEvent.click(within(card1).getByRole('button', { name: '새 손상' }));
     await waitFor(() =>
@@ -113,13 +113,13 @@ describe('ReviewPage', () => {
   it('판정 저장 실패와 완료 거부(-4001)를 알린다', async () => {
     const { server } = setup((s) => s.on('PUT', '/findings/1/verdict', fail(500, -1099, '판정 오류')));
     const card1 = await screen.findByRole('listitem', { name: '후보 #1' });
-    fireEvent.click(within(card1).getByRole('button', { name: '오탐' }));
+    fireEvent.click(within(card1).getByRole('button', { name: '손상 아님' }));
     expect(await within(card1).findByText('판정 오류')).toBeInTheDocument();
 
     server.on('PUT', '/findings/1/verdict', (c) => ok({ ...findings[0], ...(c.body as object) }));
-    fireEvent.click(within(card1).getByRole('button', { name: '오탐' }));
+    fireEvent.click(within(card1).getByRole('button', { name: '손상 아님' }));
     fireEvent.click(
-      within(screen.getByRole('listitem', { name: '후보 #2' })).getByRole('button', { name: '오탐' }),
+      within(screen.getByRole('listitem', { name: '후보 #2' })).getByRole('button', { name: '손상 아님' }),
     );
     const done = await screen.findByRole('button', { name: '검사 완료' });
     server.on('POST', '/inspections/1/complete', fail(409, -4001, 'x', { pendingFindings: 1 }));
@@ -144,7 +144,7 @@ describe('ReviewPage', () => {
     );
     await screen.findByText('후보 2건 · 미판정 2건');
     fireEvent.click(screen.getByRole('tab', { name: '하판' }));
-    expect(screen.getByText('이 컷에는 자동 후보가 없습니다.')).toBeInTheDocument();
+    expect(screen.getByText('달라진 곳을 찾지 못했어요')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '놓친 손상 직접 추가' }));
 
     const img = screen.getByAltText('표시할 사진');
@@ -186,6 +186,50 @@ describe('ReviewPage', () => {
     expect(await screen.findByText('영역 오류')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '취소' }));
     expect(screen.getByRole('listitem', { name: '후보 #1' })).toBeInTheDocument();
+  });
+
+  it('자동 비교를 못 한 컷은 이유와 함께 직접 보라고 안내하고, 후보가 없어도 대여 때 사진을 보여 준다', async () => {
+    setup((s) =>
+      s.on('GET', '/inspections/1', {
+        ...inspection,
+        comparisons: [
+          { shotType: 'top', status: 'done', baselinePhotoUrl: 'https://img/base-top.jpg' },
+          {
+            shotType: 'bottom',
+            status: 'not_comparable',
+            reason: 'too_few_matches',
+            baselinePhotoUrl: 'https://img/base-bottom.jpg',
+          },
+        ],
+      }),
+    );
+    expect(await screen.findByText('직접 볼 컷 1개: 하판')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: /하판/ }));
+    expect(screen.getByText('이 컷은 자동으로 비교하지 못했어요')).toBeInTheDocument();
+    expect(screen.getByText(/같은 곳\(모서리, 로고 등\)을 충분히 찾지 못했어요/)).toBeInTheDocument();
+    expect(screen.getByAltText('대여 시 사진')).toHaveAttribute('src', 'https://img/base-bottom.jpg');
+    expect(screen.getByRole('tab', { name: '겹쳐 보기' })).toBeEnabled();
+    // 판정이 남은 상판으로 바로 가는 버튼
+    fireEvent.click(screen.getByRole('button', { name: /다음 컷: 상판/ }));
+    expect(screen.getByRole('tab', { name: /상판/ })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('새 손상으로 판정한 뒤 유형·심각도를 바꾸면 다시 저장한다', async () => {
+    const { server } = setup();
+    const card1 = await screen.findByRole('listitem', { name: '후보 #1' });
+    fireEvent.click(within(card1).getByRole('button', { name: '새 손상' }));
+    await within(card1).findByText('새 손상', { selector: '.verdict' });
+    fireEvent.change(within(card1).getByLabelText('심각도'), { target: { value: 'severe' } });
+    await waitFor(() => expect(server.callsTo('PUT', '/findings/1/verdict')).toHaveLength(2));
+    expect(server.callsTo('PUT', '/findings/1/verdict')[1].body).toEqual({
+      verdict: 'new_damage',
+      damageType: 'sticker',
+      severity: 'severe',
+    });
+    // 손상 아님이면 유형·심각도 칸을 감춘다
+    fireEvent.click(within(card1).getByRole('button', { name: '손상 아님' }));
+    await within(card1).findByText('손상 아님', { selector: '.verdict' });
+    expect(within(card1).queryByLabelText('심각도')).toBeNull();
   });
 
   it('검사를 불러오지 못하면 알린다', async () => {
@@ -231,10 +275,30 @@ describe('CompareViewer', () => {
     expect(screen.getByAltText('대여 시 사진')).toBeInTheDocument();
   });
 
+  it('사진을 누르면 크게 보고, 대여 시/반납 시를 번갈아 본다', () => {
+    render(
+      <CompareViewer
+        baselineUrl="b.jpg"
+        targetUrl="t.jpg"
+        targetSize={{ width: 200, height: 100 }}
+        findings={findings as never}
+        selectedId={null}
+        onSelect={() => undefined}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: '반납 시 사진 크게 보기' }));
+    const dialog = screen.getByRole('dialog', { name: '사진 크게 보기' });
+    expect(within(dialog).getByAltText('반납 시 사진(크게)')).toHaveAttribute('src', 't.jpg');
+    fireEvent.click(within(dialog).getByRole('tab', { name: '대여 시' }));
+    expect(within(dialog).getByAltText('대여 시 사진(크게)')).toHaveAttribute('src', 'b.jpg');
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
   it('사진이 없으면 안내하고 겹쳐 보기를 막는다', () => {
     render(<CompareViewer findings={[]} selectedId={null} onSelect={() => undefined} />);
-    expect(screen.getByText('기준 사진 없음')).toBeInTheDocument();
-    expect(screen.getByText('반납 사진 없음')).toBeInTheDocument();
+    expect(screen.getByText('대여 때 사진이 없어요')).toBeInTheDocument();
+    expect(screen.getByText('반납 사진이 없어요')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: '겹쳐 보기' })).toBeDisabled();
   });
 });
