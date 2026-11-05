@@ -87,7 +87,7 @@ test('대여 촬영: QR 스캔 → 노트북 화면 → 8컷 촬영 → 제출',
   });
 });
 
-test('처음 보는 라벨(예전 QR)을 스캔하면 등록 화면이 열리고 저장하면 노트북 화면으로 간다', async ({
+test('처음 보는 라벨(예전 QR)을 스캔하면 등록 화면이 열리고, 저장하면 기준 사진 촬영, 뒤로 가면 노트북 화면', async ({
   page,
 }) => {
   await fakeCameraWithQr(page);
@@ -103,6 +103,23 @@ test('처음 보는 라벨(예전 QR)을 스캔하면 등록 화면이 열리고
       registered = true;
       return device;
     },
+    'POST /inspections': async (_c, route) => {
+      await route.fulfill({
+        status: 201,
+        json: {
+          header: { isSuccessful: true, resultCode: 0, resultMessage: 'SUCCESS' },
+          result: {
+            id: 3,
+            rentalId: null,
+            deviceId: device.id,
+            kind: 'register',
+            status: 'capturing',
+            requiredShots: ['top', 'bottom'],
+            capturedShots: [],
+          },
+        },
+      });
+    },
   });
   await login(page);
   await expect(page.getByRole('heading', { name: '새 노트북 등록' })).toBeVisible({ timeout: 15_000 });
@@ -112,5 +129,8 @@ test('처음 보는 라벨(예전 QR)을 스캔하면 등록 화면이 열리고
   await page.getByText('시리얼 번호 (선택)').click();
   await page.getByLabel('시리얼 번호').fill('SN1');
   await page.getByRole('button', { name: '등록' }).click();
+  // 등록하면 바로 기준 사진 8컷 촬영(spec 002 US5)
+  await expect(page.getByText(/기준 사진 촬영 · 0\/\d · A-001/)).toBeVisible();
+  await page.goBack();
   await expect(page.getByRole('heading', { name: 'A-001' })).toBeVisible();
 });
