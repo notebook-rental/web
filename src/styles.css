@@ -2046,3 +2046,62 @@ button.row:hover {
     padding-left: env(safe-area-inset-left);
   }
 }
+
+/* 뒤에서 올리다 실패한 컷 알림(촬영을 막지 않는다) */
+.redo-hint {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--warn);
+}
+.screen--camera .redo-hint {
+  color: #fbbf24;
+}
+.redo-hint__item {
+  min-height: 32px;
+  padding: 0.2rem 0.7rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+/* 세로 폰: 컷 목록을 옆으로 넘기지 않고 4칸씩 두 줄로 모두 보여 준다(아이폰에서 옆으로 넘기기가 안 되던 문제).
+   안내판은 카메라(video) 위에 확실히 올라오게 z-index를 준다. */
+@media (max-width: 959px) and (orientation: portrait) {
+  .app--capture .screen--camera .panel--sheet {
+    z-index: 4;
+  }
+  .app--capture .panel--sheet > .shot-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    overflow: visible;
+    gap: 0.3rem;
+  }
+  .app--capture .panel--sheet > .shot-strip > li {
+    min-width: 0;
+  }
+  .app--capture .shot-chip {
+    min-height: 44px;
+    padding: 0.2rem 0.15rem;
+    font-size: 0.78rem;
+  }
+  .app--capture .shot-chip > span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+@media (max-height: 600px) and (orientation: landscape) {
+  .screen--camera .panel--sheet {
+    position: relative;
+    z-index: 4;
+  }
+}

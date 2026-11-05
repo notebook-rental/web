@@ -88,6 +88,25 @@ describe('processShot', () => {
     expect(close).toHaveBeenCalled();
   });
 
+  it('작업본이 900KB를 넘으면 품질·크기를 낮춰 다시 만든다(서버 앞단 1MB 한도 대비)', async () => {
+    const { drawn } = installCanvas('offscreen');
+    const sizes: number[] = [];
+    vi.spyOn(OffscreenCanvas.prototype, 'convertToBlob').mockImplementation(async function (
+      this: OffscreenCanvas,
+      opts?: ImageEncodeOptions,
+    ) {
+      // 2560px 품질 0.8 이상이면 1.2MB, 그 아래는 500KB인 척한다
+      const big = this.width === 2560 && (opts?.quality ?? 1) >= 0.8;
+      const b = new Blob([new Uint8Array(big ? 1_200_000 : 500_000)]);
+      sizes.push(b.size);
+      return b;
+    });
+    const r = await processShot(fakeBlob('abc'));
+    expect(sizes).toEqual([1_200_000, 1_200_000, 500_000]);
+    expect(r.working.size).toBe(500_000);
+    expect(drawn.slice(1).every((d) => d.width === 2560)).toBe(true);
+  });
+
   it('OffscreenCanvas가 없으면 일반 canvas를 쓰고, 흐린 사진은 사유를 붙인다', async () => {
     installCanvas('dom', 128, false);
     const r = await processShot(fakeBlob('x'));

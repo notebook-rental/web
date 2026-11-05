@@ -28,6 +28,33 @@ describe('captureReducer', () => {
     expect(s.selected).toBe('left');
   });
 
+  it('폰 검사를 통과하면(captured) 업로드를 기다리지 않고 다음 컷으로 넘어간다', () => {
+    let s = initialCaptureState(codes);
+    s = captureReducer(s, { type: 'captured', code: 'top' });
+    expect(s.shots[0].status).toBe('processing');
+    expect(s.selected).toBe('bottom');
+    // 다른 컷을 보고 있었으면 그대로
+    s = captureReducer(s, { type: 'captured', code: 'left' });
+    expect(s.selected).toBe('bottom');
+    // 남은 컷이 없으면 지금 컷에 머문다
+    let t = initialCaptureState(['top']);
+    t = captureReducer(t, { type: 'captured', code: 'top' });
+    expect(t.selected).toBe('top');
+  });
+
+  it('뒤에서 실패하면, 다른 컷을 찍는 중에는 화면을 빼앗지 않는다', () => {
+    let s = initialCaptureState(codes);
+    s = captureReducer(s, { type: 'captured', code: 'top' }); // 지금 bottom(todo)
+    s = captureReducer(s, { type: 'rejected', code: 'top', message: 'x', background: true });
+    expect(s.selected).toBe('bottom');
+    expect(s.shots[0].status).toBe('rejected');
+    // 보고 있던 컷이 이미 올리는 중이면 실패한 컷을 보여 준다
+    s = captureReducer(s, { type: 'captured', code: 'bottom' }); // → 다음은 left
+    s = captureReducer(s, { type: 'select', code: 'bottom' });
+    s = captureReducer(s, { type: 'rejected', code: 'top', message: 'y', background: true });
+    expect(s.selected).toBe('top');
+  });
+
   it('거부되면 사유를 남기고 그 컷을 선택한다', () => {
     let s = initialCaptureState(codes);
     s = captureReducer(s, { type: 'select', code: 'left' });
