@@ -159,6 +159,19 @@ describe('CaptureScreen', () => {
     }
   });
 
+  it('팔을 들고 찍을 때는 미리보기 아무 곳이나 눌러도 찍히고, 다 찍으면 그 버튼은 없어진다', async () => {
+    const { server } = setup();
+    await waitFor(() => expect(server.callsTo('POST', '/inspections')).toHaveLength(1));
+    const tap = await screen.findByRole('button', { name: '화면을 눌러 찍기' });
+    await waitFor(() => expect(tap).toBeEnabled());
+    fireEvent.click(tap);
+    await screen.findByText(/대여 촬영 · 1\/2/);
+    fireEvent.click(await screen.findByRole('button', { name: '화면을 눌러 찍기' }));
+    await screen.findByRole('button', { name: '촬영 제출' });
+    expect(screen.queryByRole('button', { name: '화면을 눌러 찍기' })).toBeNull();
+    expect(server.callsTo('POST', '/inspections/1/photos')).toHaveLength(2);
+  });
+
   it('폰의 1차 품질 검사에 걸리면 사유를 보여 주고, 그래도 올리기로 서버에 맡길 수 있다', async () => {
     const { server } = setup({}, { processShot: async () => processed(['blurry', 'too_dark']) });
     fireEvent.click(await shutter());

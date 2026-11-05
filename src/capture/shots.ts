@@ -14,13 +14,13 @@ export const SHOT_GUIDES: ShotGuide[] = [
   {
     code: 'top',
     name: '상판',
-    guide: '노트북을 닫고 상판 전체가 틀 안에 들어오게 위에서 찍어요. QR도 함께 읽어요.',
+    guide: '노트북을 닫고 위에서 찍어요. 상판이 틀을 꽉 채울 만큼 가까이 와도 돼요. 라벨도 함께 읽어요.',
     open: false,
   },
   {
     code: 'bottom',
     name: '하판',
-    guide: '뒤집어서 바닥면 전체를 찍어요. 시리얼 라벨이 보이게 해 주세요.',
+    guide: '뒤집어서 바닥면이 틀을 꽉 채우게 찍어요. 시리얼 라벨이 보이게 해 주세요.',
     open: false,
   },
   {
@@ -40,7 +40,7 @@ export const SHOT_GUIDES: ShotGuide[] = [
   {
     code: 'keyboard',
     name: '키보드·팜레스트',
-    guide: '노트북을 열고 키보드와 손목 받침 전체를 위에서 찍어요.',
+    guide: '노트북을 열고 키보드와 손목 받침이 틀을 꽉 채우게 위에서 찍어요.',
     open: true,
   },
   {

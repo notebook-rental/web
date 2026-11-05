@@ -303,8 +303,18 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
 
   return (
     <section className="screen screen--camera">
-      <CameraView ref={videoRef} stream={camera.stream}>
+      <CameraView ref={videoRef} stream={camera.stream} fit="contain">
         <div className={`shot-overlay shot-overlay--${current?.code ?? 'none'}`} aria-hidden="true" />
+        {/* 팔을 들고 있을 때 아래 셔터까지 손이 가지 않아도 되게, 화면 어디를 눌러도 찍힌다 */}
+        {!allDone(state) && (
+          <button
+            type="button"
+            className="camera__tap"
+            onClick={shoot}
+            disabled={!inspection || !camera.stream || current?.status === 'processing'}
+            aria-label="화면을 눌러 찍기"
+          />
+        )}
         <div className="shot-title">
           <span>
             {KIND_TITLE[request.kind]} · {doneCount}/{state.shots.length}
@@ -357,6 +367,7 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
                 type="button"
                 className={`shot-chip shot-chip--${s.status}${s.code === state.selected ? ' is-selected' : ''}`}
                 aria-current={s.code === state.selected ? 'step' : undefined}
+                ref={s.code === state.selected ? scrollIntoViewIfNeeded : undefined}
                 onClick={() => dispatch({ type: 'select', code: s.code })}
               >
                 <span>{shotGuide(s.code).name}</span>
@@ -411,6 +422,11 @@ function chipText(s: ShotState, isCheckin: boolean): string {
   if (!s.comparison) return '저장됨';
   if (s.comparison === 'done') return s.findingCount ? `후보 ${s.findingCount}` : '변화 없음';
   return COMPARISON_TEXT[s.comparison];
+}
+
+/** 한 줄로 넘겨 보는 컷 목록에서 지금 찍을 컷이 보이게 한다. */
+function scrollIntoViewIfNeeded(el: HTMLElement | null) {
+  el?.scrollIntoView?.({ block: 'nearest', inline: 'center', behavior: 'smooth' });
 }
 
 function SubmittedView(props: {
