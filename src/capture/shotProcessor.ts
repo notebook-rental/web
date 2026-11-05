@@ -79,12 +79,32 @@ export async function processShot(original: Blob): Promise<ProcessedShot> {
   }
 }
 
+/**
+ * Worker와 주고받는 메시지. Blob 대신 ArrayBuffer로 주고받는다.
+ * iOS Safari는 Worker에서 만든 Blob(또는 Worker로 넘긴 Blob)을 화면 쪽 fetch로 올리면
+ * "Load failed"로 실패하고, 다시 올려도 계속 실패한다. 바이트로 넘기고 화면 쪽에서 Blob을 새로 만든다.
+ */
+export interface ShotWorkerRequest {
+  id: number;
+  buffer: ArrayBuffer;
+  type: string;
+}
+export type ShotWorkerResult = Omit<ProcessedShot, 'working'> & { workingBuffer: ArrayBuffer };
+export interface ShotWorkerResponse {
+  id: number;
+  result?: ShotWorkerResult;
+  error?: string;
+}
+
+/** Worker 안에서 한 장을 처리해 바이트로 돌려준다. */
+export async function processShotForWorker(req: ShotWorkerRequest): Promise<ShotWorkerResult> {
+  const { working, ...rest } = await processShot(new Blob([req.buffer], { type: req.type || 'image/jpeg' }));
+  return { ...rest, workingBuffer: await working.arrayBuffer() };
+}
+
 export interface ShotWorkerLike {
-  postMessage(msg: { id: number; blob: Blob }): void;
-  addEventListener(
-    type: 'message',
-    fn: (e: MessageEvent<{ id: number; result?: ProcessedShot; error?: string }>) => void,
-  ): void;
+  postMessage(msg: ShotWorkerRequest, transfer?: Transferable[]): void;
+  addEventListener(type: 'message', fn: (e: MessageEvent<ShotWorkerResponse>) => void): void;
   terminate(): void;
 }
 
@@ -118,15 +138,20 @@ export function createShotProcessor(makeWorker?: () => ShotWorkerLike | null): S
     const p = waiting.get(e.data.id);
     if (!p) return;
     waiting.delete(e.data.id);
-    if (e.data.result) p.resolve(e.data.result);
-    else p.reject(new Error(e.data.error ?? '사진 처리에 실패했습니다.'));
+    const r = e.data.result;
+    if (r) {
+      const { workingBuffer, ...rest } = r;
+      p.resolve({ ...rest, working: new Blob([workingBuffer], { type: 'image/jpeg' }) });
+    } else p.reject(new Error(e.data.error ?? '사진 처리에 실패했습니다.'));
   });
-  const fn = ((blob: Blob) =>
-    new Promise<ProcessedShot>((resolve, reject) => {
+  const fn = (async (blob: Blob) => {
+    const buffer = await blob.arrayBuffer();
+    return new Promise<ProcessedShot>((resolve, reject) => {
       const id = ++seq;
       waiting.set(id, { resolve, reject });
-      w.postMessage({ id, blob });
-    })) as ShotProcessor;
+      w.postMessage({ id, buffer, type: blob.type }, [buffer]);
+    });
+  }) as ShotProcessor;
   fn.dispose = () => {
     w.terminate();
     waiting.clear();
