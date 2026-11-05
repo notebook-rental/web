@@ -44,7 +44,7 @@ export type DeviceStatus = 'available' | 'rented' | 'inspecting' | 'repair' | 'r
 export interface Device {
   id: number;
   assetNo: string;
-  serialNo: string;
+  serialNo?: string | null;
   qrValue: string;
   status: DeviceStatus;
   // 계약 보완: 목록(GET /devices)과 스캔 결과에서 모델 이름을 보여 준다
@@ -82,10 +82,13 @@ export interface DeviceModelCreate {
 }
 
 export interface DeviceCreate {
+  /** 스캔한 라벨 값(자산 번호, 또는 예전 NR1: QR) */
   qrValue: string;
   deviceModelId: number;
-  assetNo: string;
-  serialNo: string;
+  /** 예전 NR1: QR로 등록할 때만 쓴다. 자산 번호 라벨이면 라벨 값이 곧 자산 번호다 */
+  assetNo?: string;
+  /** 선택 항목 */
+  serialNo?: string;
 }
 
 export interface DeviceDamage {
@@ -104,7 +107,8 @@ export type NextAction = 'register' | 'checkout' | 'checkin' | 'none' | 'blocked
 
 export interface ScanResult {
   qrValue?: string;
-  qrStatus: 'unassigned' | 'assigned' | 'void';
+  /** 발급한 라벨이 아닌 외부 자산 번호를 처음 스캔하면 없다 */
+  qrStatus?: 'unassigned' | 'assigned' | 'void';
   nextAction: NextAction;
   device?: Device;
   rentalId?: number;
@@ -119,7 +123,13 @@ export interface QrBatch {
   labelsPdfUrl?: string;
   // 계약 보완: GET /qr-batches 목록
   createdAt?: string;
+  /** 이 묶음에서 매긴 첫·끝 자산 번호(예: NB26110001 ~ NB26110020) */
+  firstAssetNo?: string;
+  lastAssetNo?: string;
 }
+
+/** 라벨 출력 형식. 값(자산 번호)은 같고 모양만 다르다 */
+export type LabelFormat = 'qr' | 'barcode';
 
 export type InspectionKind = 'checkout' | 'checkin';
 export type InspectionStatus = 'capturing' | 'analyzing' | 'reviewing' | 'completed' | 'blocked';

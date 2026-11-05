@@ -1,6 +1,7 @@
 import {
   ArrowRight,
   Ban,
+  Barcode,
   Camera,
   Check,
   ChevronLeft,
@@ -37,6 +38,7 @@ const ICONS = {
   scanQr: ScanQrCode,
   laptop: Laptop,
   qr: QrCode,
+  barcode: Barcode,
   layers: Layers,
   plus: Plus,
   search: Search,

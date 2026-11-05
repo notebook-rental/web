@@ -3,7 +3,7 @@
  * 모두 장식이라 스크린 리더에서는 숨기거나(aria-hidden), 뜻이 있는 그림(촬영 컷)은 role="img"로 이름을 준다.
  */
 
-/** 로그인 화면 그림: 반납 노트북 위에 휴대폰으로 QR을 비추고, 화면에는 비교 결과가 뜬다. */
+/** 로그인 화면 그림: 반납 노트북 위에 휴대폰으로 자산 번호 라벨을 비추고, 화면에는 비교 결과가 뜬다. */
 export function HeroIllustration({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 360 220" aria-hidden="true" focusable="false">

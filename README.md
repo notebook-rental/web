@@ -1,6 +1,6 @@
 # notebook-rental/web
 
-노트북 대여·반납 손상 검사 서비스의 **모바일 웹앱**(React SPA + PWA)입니다. 직원이 스마트폰 브라우저로 QR을 스캔하고, 정해진 8컷을 찍고, 반납 비교 결과를 검토합니다.
+노트북 대여·반납 손상 검사 서비스의 **모바일 웹앱**(React SPA + PWA)입니다. 직원이 스마트폰 브라우저로 노트북의 자산 번호 라벨(QR 또는 바코드)을 스캔하고, 정해진 8컷을 찍고, 반납 비교 결과를 검토합니다.
 
 - 기능 명세·계약: [notebook-rental/docs `specs/001-return-damage-inspection`](https://github.com/notebook-rental/docs/tree/main/specs/001-return-damage-inspection)
 - 초보자용 설명서(구조, 흐름, 테스트, 배포): [notebook-rental/docs `web/`](https://github.com/notebook-rental/docs/tree/main/web)

@@ -9,7 +9,7 @@ import { useCamera } from '../camera/CameraProvider';
 import { CameraView } from '../camera/CameraView';
 import { captureStill as defaultCaptureStill } from '../camera/frame';
 import { createDecoder, type BarcodeKind, type Decoder } from '../scan/qrDecoder';
-import { isSystemQr, normalizeQrValue } from '../scan/qrValue';
+import { isLabelValue, isSystemQr, normalizeQrValue } from '../scan/qrValue';
 import {
   COMPARISON_TEXT,
   allDone,
@@ -145,10 +145,10 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
   const current: ShotState | undefined = state.shots.find((s) => s.code === state.selected);
 
   async function readQr(blob: Blob): Promise<string[]> {
-    decoderRef.current ??= (deps.decoderFactory ?? createDecoder)('qr');
+    decoderRef.current ??= (deps.decoderFactory ?? createDecoder)('auto');
     try {
       const values = await (await decoderRef.current).decode(blob);
-      return [...new Set(values.map(normalizeQrValue).filter(isSystemQr))];
+      return [...new Set(values.map(normalizeQrValue).filter(isLabelValue))];
     } catch {
       return [];
     }
@@ -159,18 +159,21 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
     dispatch({ type: 'processing', code });
     let decodedQrValues: string[] | undefined;
     if (code === TOP_SHOT) {
-      // 상판 컷: 폰에서 먼저 QR을 읽어 스캔한 노트북과 같은지 본다(FR-045). 서버가 다시 확인한다.
+      // 상판 컷: 폰에서 먼저 라벨(QR·바코드)을 읽어 서버에 함께 보낸다(FR-045).
+      // 자산 번호 라벨은 사진 속 다른 바코드(제조사 바코드 등)와 폰에서 구별할 수 없어서, 우리 라벨인지는 서버가
+      // 등록된 번호로 판단한다. 폰은 예전 NR1: QR 스티커끼리만 미리 비교한다.
       decodedQrValues = await readQr(processed.working);
-      if (decodedQrValues.length > 1) {
+      const legacy = decodedQrValues.filter(isSystemQr);
+      if (legacy.length > 1) {
         dispatch({ type: 'rejected', code, reasons: ['multiple_qr'] });
         return;
       }
       const scanned = request.scannedQrValue && normalizeQrValue(request.scannedQrValue);
-      if (scanned && decodedQrValues.length === 1 && decodedQrValues[0] !== scanned) {
+      if (scanned && isSystemQr(scanned) && legacy.length === 1 && legacy[0] !== scanned) {
         dispatch({
           type: 'rejected',
           code,
-          message: '다른 노트북의 QR입니다. 처음 스캔한 노트북이 맞는지 확인해 주세요.',
+          message: '다른 노트북의 라벨입니다. 처음 스캔한 노트북이 맞는지 확인해 주세요.',
         });
         return;
       }
@@ -197,7 +200,11 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
         const reasons = (e.result as { reasons?: string[] } | null)?.reasons ?? [];
         dispatch({ type: 'rejected', code, reasons, message: reasons.length ? undefined : e.message });
       } else if (e instanceof ApiError && e.resultCode === ResultCode.TOP_SHOT_QR_MISMATCH) {
-        dispatch({ type: 'rejected', code, message: '다른 노트북의 QR입니다. 이 컷은 저장하지 않았습니다.' });
+        dispatch({
+          type: 'rejected',
+          code,
+          message: '다른 노트북의 라벨입니다. 이 컷은 저장하지 않았습니다.',
+        });
       } else if (e instanceof ApiError && e.resultCode === ResultCode.MULTIPLE_QR) {
         dispatch({ type: 'rejected', code, reasons: ['multiple_qr'] });
       } else {

@@ -35,27 +35,27 @@ describe('AdminHome', () => {
     };
   }
 
-  it('노트북·모델·QR 묶음 수를 보여 주고, 못 불러온 숫자는 – 로 둔다', async () => {
+  it('노트북·모델·라벨 묶음 수를 보여 주고, 못 불러온 숫자는 – 로 둔다', async () => {
     const server = createFakeServer()
       .on('GET', '/devices?page=0&size=1', ok([summary(1, 'A-1')], 200, 42))
       .on('GET', '/device-models', list([model, { ...model, id: 2 }]));
     open(server);
     expect(await screen.findByText('42')).toBeInTheDocument();
     expect(await screen.findByText('2')).toBeInTheDocument();
-    const tile = screen.getByRole('link', { name: /QR 스티커 묶음/ });
+    const tile = screen.getByRole('link', { name: /자산 번호 라벨 묶음/ });
     expect(tile).toHaveTextContent('–');
     expect(screen.getByRole('link', { name: /등록된 노트북/ })).toHaveAttribute('href', '/admin/devices');
   });
 
-  it('QR 값을 직접 넣어 등록을 시작하면 등록 화면으로 간다', async () => {
+  it('자산 번호를 직접 넣어 등록을 시작하면 등록 화면으로 간다', async () => {
     const server = createFakeServer().on('GET', `/scan/${enc}`, {
       qrValue: QR,
       qrStatus: 'unassigned',
       nextAction: 'register',
     });
     const { container } = open(server);
-    const input = screen.getByLabelText(/QR 값을 직접 입력/);
-    fireEvent.change(input, { target: { value: 'nope' } });
+    const input = screen.getByLabelText(/자산 번호를 직접 입력/);
+    fireEvent.change(input, { target: { value: 'https://nope' } });
     fireEvent.click(screen.getByRole('button', { name: '등록 시작' }));
     expect(await screen.findByText(/형식이 올바르지 않습니다/)).toBeInTheDocument();
     fireEvent.change(input, { target: { value: ` ${QR.toLowerCase()} ` } });
@@ -67,7 +67,7 @@ describe('AdminHome', () => {
     const scan = { qrValue: QR, qrStatus: 'assigned', nextAction: 'none', device: summary(1, 'A-1') };
     const server = createFakeServer().on('GET', `/scan/${enc}`, scan);
     const { container } = open(server);
-    fireEvent.change(screen.getByLabelText(/QR 값을 직접 입력/), { target: { value: QR } });
+    fireEvent.change(screen.getByLabelText(/자산 번호를 직접 입력/), { target: { value: QR } });
     fireEvent.click(screen.getByRole('button', { name: '등록 시작' }));
     await waitFor(() => expect(readLocation(container).path).toBe('/device'));
     expect(readLocation(container).state).toEqual({ scan, identifiedBy: 'manual' });
@@ -82,12 +82,12 @@ describe('AdminHome', () => {
       return fail(500, -1099, '서버 오류');
     });
     open(server);
-    fireEvent.change(screen.getByLabelText(/QR 값을 직접 입력/), { target: { value: QR } });
+    fireEvent.change(screen.getByLabelText(/자산 번호를 직접 입력/), { target: { value: QR } });
     const go = screen.getByRole('button', { name: '등록 시작' });
     fireEvent.click(go);
-    expect(await screen.findByText('폐기된 QR입니다. 새 QR을 붙여 주세요.')).toBeInTheDocument();
+    expect(await screen.findByText('폐기된 라벨입니다. 라벨을 다시 출력해 붙여 주세요.')).toBeInTheDocument();
     fireEvent.click(go);
-    expect(await screen.findByText('이 시스템에서 발급한 QR이 아닙니다.')).toBeInTheDocument();
+    expect(await screen.findByText('자산 번호로 쓸 수 없는 값입니다.')).toBeInTheDocument();
     fireEvent.click(go);
     expect(await screen.findByText('서버 오류')).toBeInTheDocument();
   });
@@ -264,17 +264,17 @@ describe('QrBatchPage 지난 묶음', () => {
         list([{ id: 1, count: 10, createdAt: '2026-11-01T01:00:00Z' }]),
       )
       .on('POST', '/qr-batches', { id: 2, count: 5 })
-      .on('GET', '/qr-batches/1/labels.pdf', () => new Response('%PDF', { status: 200 }));
+      .on('GET', '/qr-batches/1/labels.pdf?format=qr', () => new Response('%PDF', { status: 200 }));
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
     URL.createObjectURL = vi.fn(() => 'blob:x');
     URL.revokeObjectURL = vi.fn();
     renderScreen(<QrBatchPage />, { fetchFn: server.fetchFn, session: adminSession, path: '/admin/qr' });
-    const history = await screen.findByRole('list', { name: '지난 QR 묶음' });
+    const history = await screen.findByRole('list', { name: '지난 라벨 묶음' });
     expect(within(history).getByText('묶음 #1')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '묶음 #1 PDF' }));
     await waitFor(() => expect(click).toHaveBeenCalled());
 
-    fireEvent.click(screen.getByRole('button', { name: '빈 QR 발급' }));
+    fireEvent.click(screen.getByRole('button', { name: '자산 번호 발급' }));
     await screen.findByText('묶음 #2: 5장 발급됨');
     const names = within(history)
       .getAllByText(/^묶음 #/)

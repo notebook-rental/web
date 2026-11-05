@@ -7,6 +7,9 @@ import { DAMAGE_TYPE_TEXT, SEVERITY_TEXT, shotGuide } from '../capture/shots';
 import type { DevicePageState } from '../scan/navigation';
 import { STATUS_TEXT } from './labels';
 import { Icon } from '../shared/ui/Icon';
+import { downloadBlob } from '../shared/downloadBlob';
+import { LabelFormatPicker } from './LabelFormatPicker';
+import { useLabelFormat } from './labelFormat';
 
 /**
  * 노트북 화면(FR-007). 스캔 결과 하나로 상태, 진행할 일, 기존 손상을 보여 주고
@@ -20,7 +23,7 @@ export function DevicePage() {
 }
 
 function DeviceView({ initial }: { initial: DevicePageState }) {
-  const { endpoints } = useServices();
+  const { endpoints, hasRole } = useServices();
   const navigate = useNavigate();
   const [scan, setScan] = useState<ScanResult>(initial.scan);
   const device = scan.device!;
@@ -70,12 +73,17 @@ function DeviceView({ initial }: { initial: DevicePageState }) {
         </header>
         <dl className="kv">
           <dt>시리얼</dt>
-          <dd>{device.serialNo}</dd>
-          <dt>QR</dt>
-          <dd className="mono">{device.qrValue}</dd>
+          <dd>{device.serialNo || <span className="muted">없음</span>}</dd>
+          {device.qrValue && device.qrValue !== device.assetNo && (
+            <>
+              <dt>예전 QR</dt>
+              <dd className="mono">{device.qrValue}</dd>
+            </>
+          )}
           <dt>식별</dt>
-          <dd>{initial.identifiedBy === 'qr' ? 'QR 스캔' : '자산 번호 직접 입력'}</dd>
+          <dd>{initial.identifiedBy === 'qr' ? '라벨 스캔' : '자산 번호 직접 입력'}</dd>
         </dl>
+        {hasRole('admin') && <ReprintLabel deviceId={device.id} assetNo={device.assetNo} />}
       </div>
 
       {(scan.nextAction === 'checkout' || scan.nextAction === 'checkin') && (
@@ -151,5 +159,36 @@ function CreateRental({ deviceId, onCreated }: { deviceId: number; onCreated(): 
         대여 대기 건 만들기
       </button>
     </form>
+  );
+}
+
+/** 관리자: 라벨이 상했을 때 같은 자산 번호로 라벨을 다시 출력한다(예전 "QR 교체"를 대신한다). */
+function ReprintLabel({ deviceId, assetNo }: { deviceId: number; assetNo: string }) {
+  const { endpoints } = useServices();
+  const [format, setFormat] = useLabelFormat();
+  const [error, setError] = useState<string | null>(null);
+
+  async function print() {
+    setError(null);
+    try {
+      downloadBlob(await endpoints.deviceLabelPdf(deviceId, format), `label-${assetNo}.pdf`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '라벨을 받지 못했습니다.');
+    }
+  }
+
+  return (
+    <div className="form">
+      <LabelFormatPicker value={format} onChange={setFormat} />
+      <button type="button" className="btn" onClick={() => void print()}>
+        <Icon name="printer" size={18} />
+        라벨 다시 출력
+      </button>
+      {error && (
+        <p className="alert alert--error" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }

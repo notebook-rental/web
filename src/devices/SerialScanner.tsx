@@ -26,7 +26,7 @@ export function SerialScanner({
   useBarcodeScanner({
     videoRef,
     active: !!camera.stream,
-    kind: 'serial',
+    kind: 'auto',
     decoderFactory,
     onFrame(values) {
       const v = values.map((s) => s.trim()).find((s) => s && !s.startsWith('NR1:'));

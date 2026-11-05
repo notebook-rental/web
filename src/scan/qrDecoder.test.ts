@@ -56,7 +56,7 @@ describe('workerDecoder', () => {
   it('video는 축소한 ImageData로 보낸다', async () => {
     stubCanvas();
     const w = fakeWorker((req) => [String((req.image as ImageData).width)]);
-    const d = workerDecoder(w, 'serial', 100);
+    const d = workerDecoder(w, 'barcode', 100);
     const video = document.createElement('video');
     Object.defineProperty(video, 'videoWidth', { value: 400 });
     Object.defineProperty(video, 'videoHeight', { value: 200 });
@@ -115,10 +115,10 @@ describe('BarcodeDetector', () => {
 
   it('지원하면 내장 기능을 쓰고, 지원하는 형식만 고른다', async () => {
     const { Ctor } = installDetector(['qr_code', 'code_128'], ['A']);
-    const d = await createDecoder('serial', () => {
+    const d = await createDecoder('auto', () => {
       throw new Error('worker 쓰면 안 됨');
     });
-    expect(Ctor.lastFormats).toEqual(['code_128', 'qr_code']);
+    expect(Ctor.lastFormats).toEqual(['qr_code', 'code_128']);
     await expect(d.decode(document.createElement('video'))).resolves.toEqual(['A']);
     d.dispose();
   });

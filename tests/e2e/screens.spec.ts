@@ -150,8 +150,8 @@ test('검토', async ({ page }) => {
   await shoot(page, '06-review');
 });
 
-test('관리자 QR 출력', async ({ page }) => {
-  await mockApi(page, { ...authHandlers });
+test('관리자 자산 번호 라벨', async ({ page }) => {
+  await mockApi(page, { ...authHandlers, 'GET /qr-batches': adminHandlers['GET /qr-batches'] });
   await login(page);
   await page.goto('/admin/qr');
   await shoot(page, '07-admin-qr');
@@ -166,7 +166,7 @@ test('신규 등록', async ({ page }) => {
     ],
   });
   await login(page);
-  await page.goto(`/register?qr=${encodeURIComponent(QR)}`);
+  await page.goto('/register?qr=NB26110001');
   await shoot(page, '08-register');
 });
 
@@ -220,8 +220,20 @@ const adminHandlers = {
     { id: 2, manufacturer: 'Samsung', name: 'Galaxy Book4 Pro' },
   ],
   'GET /qr-batches': [
-    { id: 3, count: 40, createdAt: '2026-11-04T02:10:00Z' },
-    { id: 2, count: 20, createdAt: '2026-10-21T07:45:00Z' },
+    {
+      id: 3,
+      count: 40,
+      createdAt: '2026-11-04T02:10:00Z',
+      firstAssetNo: 'NB26110001',
+      lastAssetNo: 'NB26110040',
+    },
+    {
+      id: 2,
+      count: 20,
+      createdAt: '2026-10-21T07:45:00Z',
+      firstAssetNo: 'NB26100001',
+      lastAssetNo: 'NB26100020',
+    },
   ],
 };
 

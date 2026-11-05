@@ -85,8 +85,8 @@ describe('App 라우팅과 로그인', () => {
     fireEvent.click(await screen.findByRole('link', { name: '관리' }));
     expect(await screen.findByRole('heading', { name: '관리 홈' })).toBeInTheDocument();
     const menu = screen.getByRole('navigation', { name: '관리 메뉴' });
-    fireEvent.click(within(menu).getByRole('link', { name: 'QR 스티커' }));
-    expect(await screen.findByRole('heading', { name: 'QR 스티커 출력' })).toBeInTheDocument();
+    fireEvent.click(within(menu).getByRole('link', { name: '자산 번호 라벨' }));
+    expect(await screen.findByRole('heading', { name: '자산 번호 라벨' })).toBeInTheDocument();
     fireEvent.click(within(menu).getByRole('link', { name: '노트북' }));
     expect(await screen.findByRole('heading', { name: '노트북' })).toBeInTheDocument();
     fireEvent.click(within(menu).getByRole('link', { name: '모델·촬영 컷' }));
@@ -96,7 +96,7 @@ describe('App 라우팅과 로그인', () => {
   it('모르는 주소는 첫 화면으로 보내고, 로그아웃하면 로그인 화면으로 간다', async () => {
     const server = createFakeServer().on('POST', '/auth/logout', fail(500, -1099, 'x'));
     renderApp('/nowhere', server);
-    expect(await screen.findByText(/QR을 화면 안에 비춰/)).toBeInTheDocument();
+    expect(await screen.findByText(/자산 번호 라벨을 화면 안에 비춰/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '로그아웃' }));
     expect(await screen.findByRole('button', { name: '로그인' })).toBeInTheDocument();
     expect(localStorage.getItem('nr.session')).toBeNull();
