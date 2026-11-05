@@ -18,6 +18,9 @@ import type {
 } from './types';
 
 /** 화면에서 쓰는 업무 API 목록. 경로는 openapi.yaml과 같다(기준 경로 /api/v1). */
+/** 원본 한 장을 올리는 데 기다리는 최대 시간 */
+export const ORIGINAL_TIMEOUT_MS = 120_000;
+
 export function createEndpoints(api: ApiClient) {
   const enc = encodeURIComponent;
   return {
@@ -60,6 +63,8 @@ export function createEndpoints(api: ApiClient) {
       kind: InspectionKind;
       identifiedBy: 'qr' | 'manual';
       scannedQrValue?: string;
+      /** 끝난 등록 기준 촬영을 다시 열어 다시 찍는다 */
+      retake?: boolean;
     }) => api.request<Inspection>('POST', '/inspections', { json: body }),
     getInspection: (id: number) => api.request<Inspection>('GET', `/inspections/${id}`),
     uploadPhoto: (
@@ -74,13 +79,24 @@ export function createEndpoints(api: ApiClient) {
       return api.request<PhotoUploaded>('POST', `/inspections/${inspectionId}/photos`, { form });
     },
     /** 원본을 서버를 거쳐 올린다. 서버가 sha256을 대조해 저장하고 확인까지 끝낸다. */
-    uploadOriginal: (inspectionId: number, photoId: number, blob: Blob) => {
+    uploadOriginal: (inspectionId: number, photoId: number, blob: Blob, timeoutMs = ORIGINAL_TIMEOUT_MS) => {
       const form = new FormData();
       form.append('file', blob, 'original.jpg');
-      return api.request<null>('POST', `/inspections/${inspectionId}/photos/${photoId}/original/content`, {
-        form,
-      });
+      // 응답 없이 멈춘 요청이 큐 전체를 붙잡지 않게, 오래 걸리면 끊고 다시 시도한다.
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+      return api
+        .request<null>('POST', `/inspections/${inspectionId}/photos/${photoId}/original/content`, {
+          form,
+          signal: ctrl.signal,
+        })
+        .finally(() => clearTimeout(timer));
     },
+    /** 사진 보기. 저장소 주소 대신 서버를 거쳐 받는다. 원본이 아직 없으면 서버가 작업본을 준다. */
+    photoImage: (inspectionId: number, photoId: number, variant: 'work' | 'original' = 'work') =>
+      api.blob(
+        `/inspections/${inspectionId}/photos/${photoId}/image${variant === 'original' ? '?variant=original' : ''}`,
+      ),
     confirmOriginal: (inspectionId: number, photoId: number) =>
       api.request<null>('POST', `/inspections/${inspectionId}/photos/${photoId}/original`),
     submitInspection: (id: number) => api.request<null>('POST', `/inspections/${id}/submit`),

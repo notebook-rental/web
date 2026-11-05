@@ -143,7 +143,20 @@ describe('DevicePage', () => {
 
     const done = open({ nextAction: 'none', qrStatus: 'assigned', device, registerPhotos: 'completed' });
     expect(screen.getByText('찍음')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /기준 사진/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /기준 사진 (촬영|이어서)/ })).toBeNull();
+    // 다 찍었으면 다시 찍을 수 있다(같은 검사를 다시 연다)
+    fireEvent.click(screen.getByRole('button', { name: '기준 사진 다시 찍기' }));
+    expect(readLocation(done.container)).toEqual({
+      path: '/capture',
+      state: {
+        kind: 'register',
+        deviceId: 5,
+        identifiedBy: 'qr',
+        scannedQrValue: QR,
+        retake: true,
+        deviceLabel: 'A-001',
+      },
+    });
     done.unmount();
 
     open({

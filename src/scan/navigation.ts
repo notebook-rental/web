@@ -46,3 +46,26 @@ export function registerCaptureRequest(
     deviceLabel: device.assetNo,
   };
 }
+
+/**
+ * 다 찍은 등록 기준 사진을 다시 찍는다. 같은 검사를 다시 열어 고칠 컷만 다시 찍고, 예전 사진은 기록으로 남는다.
+ * 대여 가능 상태이고 진행할 대여·반납이 없을 때만이다.
+ */
+export function registerRetakeRequest(
+  scan: ScanResult,
+  identifiedBy: 'qr' | 'manual',
+  scannedQrValue?: string,
+): CaptureRequest | null {
+  const device = scan.device;
+  if (!device || device.status !== 'available' || scan.nextAction !== 'none') return null;
+  if (scan.registerPhotos !== 'completed') return null;
+  return {
+    kind: 'register',
+    deviceId: device.id,
+    identifiedBy,
+    scannedQrValue,
+    retake: true,
+    requiredShots: scan.requiredShots,
+    deviceLabel: device.assetNo,
+  };
+}

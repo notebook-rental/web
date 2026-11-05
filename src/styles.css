@@ -2105,3 +2105,83 @@ button.row:hover {
     z-index: 4;
   }
 }
+
+/* 찍은 사진 보기(등록 완료 화면, 노트북 화면) */
+.gallery {
+  display: grid;
+  gap: 8px;
+}
+.gallery__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.gallery__item {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  text-align: center;
+  cursor: pointer;
+}
+.gallery__item .photo-img,
+.gallery__blank {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--surface-2, #eceff3);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  color: var(--muted, #6b7280);
+}
+.gallery__item--empty {
+  cursor: default;
+}
+.photo-img--loading,
+.photo-img--failed {
+  display: grid;
+  place-items: center;
+  background: var(--surface-2, #eceff3);
+  color: var(--muted, #6b7280);
+  font-size: 11px;
+}
+.photo-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: rgba(0, 0, 0, 0.92);
+  color: #fff;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+.photo-dialog__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+}
+.photo-dialog__bar strong {
+  flex: 1;
+}
+.photo-dialog__bar .btn {
+  color: #fff;
+  min-height: 44px;
+  min-width: 44px;
+}
+.photo-dialog__img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
