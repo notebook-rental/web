@@ -109,6 +109,17 @@ for (const size of SIZES) {
       await page.waitForTimeout(600);
       await snap(page, `${size.name}-5-capture-next`);
       await expectTappable(page, /촬영하기$/, 56);
+      // 컷 목록의 끝(꺼진 화면)까지 고를 수 있어야 한다. 세로에서는 넘기지 않아도 다 보인다.
+      const strip = page.getByRole('list', { name: '촬영 컷' });
+      if (size.name.startsWith('portrait')) {
+        for (const chip of await strip.getByRole('button').all())
+          await expect(chip).toBeInViewport({ ratio: 1 });
+      }
+      await strip.evaluate((el) => (el.scrollLeft = el.scrollWidth));
+      const last = strip.getByRole('button', { name: /꺼진 화면/ });
+      await last.click();
+      await expect(last).toHaveAttribute('aria-current', 'step');
+      await expect(page.getByRole('button', { name: '꺼진 화면 촬영하기' })).toBeVisible();
     });
 
     test('신규 등록', async ({ page }) => {

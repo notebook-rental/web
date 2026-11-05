@@ -41,7 +41,11 @@ export interface CaptureDeps {
   processShot?: (b: Blob) => Promise<ProcessedShot>;
   decoderFactory?: (k: BarcodeKind) => Promise<Decoder>;
   captureStill?: (video: HTMLVideoElement, stream: MediaStream | null) => Promise<Blob>;
+  /** 인터넷 오류일 때 자동으로 다시 올리기 전에 기다리는 시간(ms). 기본 [1500, 4000, 8000] */
+  retryDelays?: number[];
 }
+
+const DEFAULT_RETRY_DELAYS = [1500, 4000, 8000];
 
 const KIND_TITLE: Record<InspectionKind, string> = {
   checkout: '대여 촬영',
@@ -81,6 +85,8 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
   const processShot = useMemo(() => deps.processShot ?? createShotProcessor(), [deps.processShot]);
   useEffect(() => () => (processShot as { dispose?: () => void }).dispose?.(), [processShot]);
   const decoderRef = useRef<Promise<Decoder> | null>(null);
+  // 업로드는 한 번에 한 장씩 뒤에서 올린다(아이폰에서 여러 장을 한꺼번에 보내면 끊기기 쉽다).
+  const uploadChain = useRef<Promise<void>>(Promise.resolve());
   useEffect(
     () => () => {
       void decoderRef.current?.then((d) => d.dispose());
@@ -166,7 +172,7 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
     }
   }
 
-  async function upload(code: string, original: Blob, processed: ProcessedShot) {
+  async function upload(code: string, original: Blob, processed: ProcessedShot, background = false) {
     if (!inspection) return;
     dispatch({ type: 'processing', code });
     let decodedQrValues: string[] | undefined;
@@ -177,59 +183,85 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
       decodedQrValues = await readQr(processed.working);
       const legacy = decodedQrValues.filter(isSystemQr);
       if (legacy.length > 1) {
-        dispatch({ type: 'rejected', code, reasons: ['multiple_qr'] });
+        dispatch({ type: 'rejected', background, code, reasons: ['multiple_qr'] });
         return;
       }
       const scanned = request.scannedQrValue && normalizeQrValue(request.scannedQrValue);
       if (scanned && isSystemQr(scanned) && legacy.length === 1 && legacy[0] !== scanned) {
         dispatch({
           type: 'rejected',
+          background,
           code,
           message: '다른 노트북의 라벨입니다. 처음 스캔한 노트북이 맞는지 확인해 주세요.',
         });
         return;
       }
     }
+    const delays = deps.retryDelays ?? DEFAULT_RETRY_DELAYS;
+    const started = Date.now();
     try {
-      const photo = await endpoints.uploadPhoto(inspection.id, {
-        shotType: code,
-        image: processed.working,
-        originalSha256: processed.originalSha256,
-        decodedQrValues,
-      });
+      let photo: Awaited<ReturnType<typeof endpoints.uploadPhoto>>;
+      for (let attempt = 0; ; attempt++) {
+        try {
+          photo = await endpoints.uploadPhoto(inspection.id, {
+            shotType: code,
+            image: processed.working,
+            originalSha256: processed.originalSha256,
+            decodedQrValues,
+          });
+          break;
+        } catch (e) {
+          // 인터넷 오류면 잠깐 기다렸다 저절로 다시 올린다. 그동안 다음 컷을 계속 찍을 수 있다.
+          if (!isNetworkFailure(e) || attempt >= delays.length) throw e;
+          await new Promise((r) => setTimeout(r, delays[attempt]));
+        }
+      }
       if (photo.originalUploadUrl) {
-        await queue.enqueue({
-          inspectionId: inspection.id,
-          photoId: photo.id,
-          shotType: code,
-          uploadUrl: photo.originalUploadUrl,
-          blob: original,
-        });
+        try {
+          await queue.enqueue({
+            inspectionId: inspection.id,
+            photoId: photo.id,
+            shotType: code,
+            uploadUrl: photo.originalUploadUrl,
+            blob: original,
+          });
+        } catch {
+          // 원본 보관함(IndexedDB)에 못 넣어도 작업본은 이미 서버에 있다. 컷은 저장된 것으로 둔다.
+        }
       }
       dispatch({ type: 'uploaded', code, photoId: photo.id });
     } catch (e) {
       if (e instanceof ApiError && e.resultCode === ResultCode.QUALITY_REJECTED) {
         const reasons = (e.result as { reasons?: string[] } | null)?.reasons ?? [];
-        dispatch({ type: 'rejected', code, reasons, message: reasons.length ? undefined : e.message });
+        dispatch({
+          type: 'rejected',
+          background,
+          code,
+          reasons,
+          message: reasons.length ? undefined : e.message,
+        });
       } else if (e instanceof ApiError && e.resultCode === ResultCode.TOP_SHOT_QR_MISMATCH) {
         dispatch({
           type: 'rejected',
+          background,
           code,
           message: '다른 노트북의 라벨입니다. 이 컷은 저장하지 않았습니다.',
         });
       } else if (e instanceof ApiError && e.resultCode === ResultCode.MULTIPLE_QR) {
-        dispatch({ type: 'rejected', code, reasons: ['multiple_qr'] });
+        dispatch({ type: 'rejected', background, code, reasons: ['multiple_qr'] });
       } else if (isNetworkFailure(e)) {
         // 사진은 그대로 두고 다시 올릴 수 있게 한다(다시 찍지 않아도 된다).
         setHeld({ code, original, processed });
         dispatch({
           type: 'rejected',
+          background,
           code,
-          message: '인터넷이 잠깐 끊겨 사진을 올리지 못했어요. "다시 올리기"를 눌러 주세요.',
+          message: `사진을 올리지 못했어요. 인터넷을 확인하고 "다시 올리기"를 눌러 주세요. (${failureDetail(e, processed.working, started)})`,
         });
       } else {
         dispatch({
           type: 'rejected',
+          background,
           code,
           message: e instanceof Error ? e.message : '업로드에 실패했습니다.',
         });
@@ -274,7 +306,11 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
         dispatch({ type: 'rejected', code, reasons: processed.reasons });
         return;
       }
-      await upload(code, original, processed);
+      // 폰 검사를 통과하면 바로 다음 컷으로 넘기고, 업로드는 뒤에서 한 장씩 한다.
+      dispatch({ type: 'captured', code });
+      const job = uploadChain.current.then(() => upload(code, original, processed, true));
+      uploadChain.current = job.catch(() => undefined);
+      await job;
     } catch (e) {
       dispatch({ type: 'rejected', code, message: e instanceof Error ? e.message : '촬영에 실패했습니다.' });
     }
@@ -330,6 +366,8 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
   }
 
   const guide = current ? shotGuide(current.code) : null;
+  // 뒤에서 올리다 실패한 컷. 지금 다른 컷을 찍는 중이면 화면을 빼앗지 않고 여기서 알려 준다.
+  const redo = state.shots.filter((s) => s.status === 'rejected' && s.code !== state.selected);
   const doneCount = state.shots.filter((s) => s.status === 'done').length;
 
   return (
@@ -395,13 +433,30 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
                 onClick={() => {
                   const h = held;
                   setHeld(null);
-                  void upload(h.code, h.original, h.processed);
+                  const job = uploadChain.current.then(() => upload(h.code, h.original, h.processed));
+                  uploadChain.current = job.catch(() => undefined);
                 }}
               >
                 {current.reasons?.length ? '그래도 올리기(서버가 다시 판단)' : '다시 올리기'}
               </button>
             )}
           </div>
+        )}
+        {redo.length > 0 && (
+          <p className="redo-hint">
+            다시 볼 컷:
+            {redo.map((s) => (
+              <button
+                key={s.code}
+                type="button"
+                className="redo-hint__item"
+                aria-label={`${shotGuide(s.code).name} 컷 보기`}
+                onClick={() => dispatch({ type: 'select', code: s.code })}
+              >
+                {shotGuide(s.code).name}
+              </button>
+            ))}
+          </p>
         )}
         <ol className="shot-strip" aria-label="촬영 컷">
           {state.shots.map((s) => (
@@ -491,6 +546,15 @@ function isNetworkFailure(e: unknown): boolean {
   return (
     e instanceof TypeError || (e instanceof Error && /load failed|failed to fetch|network/i.test(e.message))
   );
+}
+
+/** 실패 원인을 짧게 적는다(오류 이름·내용, 사진 크기, 걸린 시간). 원인을 찾는 데 쓴다. */
+function failureDetail(e: unknown, image: Blob, started: number): string {
+  const cause = e instanceof ApiError && e.cause instanceof Error ? e.cause : e;
+  const what = cause instanceof Error ? `${cause.name}: ${cause.message}` : String(cause);
+  const mb = (image.size / 1024 / 1024).toFixed(2);
+  const sec = ((Date.now() - started) / 1000).toFixed(1);
+  return `${what} · ${mb}MB · ${sec}초`;
 }
 
 function scrollIntoViewIfNeeded(el: HTMLElement | null) {

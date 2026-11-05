@@ -24,6 +24,13 @@ export class ApiError extends Error {
 }
 
 export const NETWORK_ERROR_CODE = -1;
+
+/** fetch가 응답 없이 실패했을 때. 브라우저가 준 원래 오류는 cause에 남겨 원인을 찾을 때 쓴다. */
+function networkError(cause: unknown): ApiError {
+  const err = new ApiError(0, NETWORK_ERROR_CODE, '네트워크에 연결할 수 없습니다. 연결을 확인해 주세요.');
+  (err as { cause?: unknown }).cause = cause;
+  return err;
+}
 export const SERVER_ERROR_CODE = -1099;
 
 export interface TokenSource {
@@ -91,7 +98,7 @@ export function createApiClient({ baseUrl, tokens, fetchFn }: ApiClientConfig): 
       res = await doFetch(baseUrl + path, buildInit(method, options));
     } catch (e) {
       if ((e as Error)?.name === 'AbortError') throw e;
-      throw new ApiError(0, NETWORK_ERROR_CODE, '네트워크에 연결할 수 없습니다. 연결을 확인해 주세요.');
+      throw networkError(e);
     }
     if (res.status === 401 && !options.anonymous) {
       const refreshed = await tokens.refresh();
@@ -101,8 +108,8 @@ export function createApiClient({ baseUrl, tokens, fetchFn }: ApiClientConfig): 
       }
       try {
         res = await doFetch(baseUrl + path, buildInit(method, options));
-      } catch {
-        throw new ApiError(0, NETWORK_ERROR_CODE, '네트워크에 연결할 수 없습니다. 연결을 확인해 주세요.');
+      } catch (e) {
+        throw networkError(e);
       }
       if (res.status === 401) tokens.onUnauthorized();
     }

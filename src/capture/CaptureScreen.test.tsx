@@ -172,9 +172,9 @@ describe('CaptureScreen', () => {
     expect(server.callsTo('POST', '/inspections/1/photos')).toHaveLength(2);
   });
 
-  it('인터넷이 끊겨 못 올리면(Safari "Load failed") 다시 찍지 않고 다시 올릴 수 있다', async () => {
+  it('인터넷이 잠깐 끊기면(Safari "Load failed") 저절로 다시 올린다', async () => {
     let n = 0;
-    const { server } = setup({}, {}, [[QR]], (s) =>
+    const { server } = setup({}, { retryDelays: [0, 0] }, [[QR]], (s) =>
       s.on('POST', '/inspections/1/photos', () => {
         n += 1;
         if (n === 1) throw new TypeError('Load failed');
@@ -183,10 +183,31 @@ describe('CaptureScreen', () => {
     );
     await waitFor(() => expect(server.callsTo('POST', '/inspections')).toHaveLength(1));
     fireEvent.click(await shutter());
-    expect(await screen.findByText(/인터넷이 잠깐 끊겨/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '다시 올리기' }));
     await screen.findByText(/대여 촬영 · 1\/2/);
     expect(n).toBe(2);
+    expect(screen.queryByText(/사진을 올리지 못했어요/)).toBeNull();
+  });
+
+  it('계속 못 올리면 촬영을 막지 않고, 원인과 함께 "다시 올리기"를 보여 준다', async () => {
+    let down = true;
+    const { server } = setup({}, { retryDelays: [0, 0] }, [[QR]], (s) =>
+      s.on('POST', '/inspections/1/photos', (c) => {
+        if (down) throw new TypeError('Load failed');
+        const top = (c.body as FormData).get('shotType') === 'top';
+        return ok({ id: top ? 101 : 102, shotType: 'x', originalUploadUrl: 'https://s3/put' }, 201);
+      }),
+    );
+    await waitFor(() => expect(server.callsTo('POST', '/inspections')).toHaveLength(1));
+    fireEvent.click(await shutter());
+    // 기다리지 않고 바로 다음 컷(하판)으로 넘어간다
+    expect(await screen.findByRole('button', { name: '하판 촬영하기' })).toBeInTheDocument();
+    // 처음 1번 + 자동 2번 = 3번 시도
+    await waitFor(() => expect(server.callsTo('POST', '/inspections/1/photos')).toHaveLength(3));
+    fireEvent.click(await screen.findByRole('button', { name: '상판 컷 보기' }));
+    expect(await screen.findByText(/TypeError: Load failed · 0\.00MB/)).toBeInTheDocument();
+    down = false;
+    fireEvent.click(screen.getByRole('button', { name: '다시 올리기' }));
+    await screen.findByText(/대여 촬영 · 1\/2/);
   });
 
   it('폰 카메라 앱으로 찍은 사진도 같은 방법으로 올린다(선택 기능)', async () => {
@@ -242,9 +263,16 @@ describe('CaptureScreen', () => {
     ];
     let n = 0;
     server.on('POST', '/inspections/1/photos', () => responses[n++]);
+    // 결과가 늦게 와도 촬영을 막지 않는다. 실패한 컷은 "다시 볼 컷"에서 연다.
     const shoot = async (text: RegExp | string) => {
+      const before = server.callsTo('POST', '/inspections/1/photos').length;
       fireEvent.click(await shutter());
-      expect(await screen.findByText(text)).toBeInTheDocument();
+      await waitFor(() => expect(server.callsTo('POST', '/inspections/1/photos')).toHaveLength(before + 1));
+      await waitFor(() => {
+        const open = screen.queryByRole('button', { name: /컷 보기$/ });
+        if (open) fireEvent.click(open);
+        expect(screen.getByText(text)).toBeInTheDocument();
+      });
     };
     await shoot(/틀을 벗어났어요/);
     await shoot('다른 노트북의 라벨입니다. 이 컷은 저장하지 않았습니다.');
@@ -256,9 +284,12 @@ describe('CaptureScreen', () => {
 
   it('상판 컷에서 폰이 읽은 QR이 스캔한 것과 다르거나 여러 개면 올리지 않는다(FR-045, FR-009)', async () => {
     const { server } = setup({}, {}, [['NR1:0123456789'], [QR, 'NR1:0123456789'], ['hello']]);
+    // 촬영은 바로 다음 컷으로 넘어가고, 걸린 컷은 "다시 볼 컷"에서 연다.
     fireEvent.click(await shutter());
+    fireEvent.click(await screen.findByRole('button', { name: '상판 컷 보기' }));
     expect(await screen.findByText(/다른 노트북의 라벨입니다. 처음 스캔한/)).toBeInTheDocument();
     fireEvent.click(await shutter());
+    fireEvent.click(await screen.findByRole('button', { name: '상판 컷 보기' }));
     expect(await screen.findByText(/라벨이 여러 개 찍혔어요/)).toBeInTheDocument();
     expect(server.callsTo('POST', '/inspections/1/photos')).toHaveLength(0);
     // 자산 번호 모양의 값(다른 바코드일 수도 있다)은 서버가 등록된 번호로 판단하도록 함께 올린다.

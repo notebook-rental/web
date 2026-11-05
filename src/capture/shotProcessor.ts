@@ -1,6 +1,8 @@
 import {
   ANALYSIS_MAX_SIDE,
+  WORKING_FALLBACKS,
   WORKING_JPEG_QUALITY,
+  WORKING_MAX_BYTES,
   WORKING_MAX_SIDE,
   fitWithin,
   measureQuality,
@@ -52,6 +54,11 @@ function draw(bitmap: ImageBitmap, size: { width: number; height: number }) {
   return { canvas, ctx };
 }
 
+async function encodeWorking(bitmap: ImageBitmap, side: number, quality: number): Promise<Blob> {
+  const w = draw(bitmap, fitWithin(bitmap.width, bitmap.height, side));
+  return canvasToJpeg(w.canvas, quality);
+}
+
 export async function processShot(original: Blob): Promise<ProcessedShot> {
   const [buffer, bitmap] = await Promise.all([original.arrayBuffer(), createImageBitmap(original)]);
   try {
@@ -62,9 +69,12 @@ export async function processShot(original: Blob): Promise<ProcessedShot> {
     const pixels = a.ctx.getImageData(0, 0, small.width, small.height);
     const metrics = measureQuality(pixels.data, small.width, small.height);
 
-    const size = fitWithin(bitmap.width, bitmap.height, WORKING_MAX_SIDE);
-    const w = draw(bitmap, size);
-    const working = await canvasToJpeg(w.canvas, WORKING_JPEG_QUALITY);
+    let working = await encodeWorking(bitmap, WORKING_MAX_SIDE, WORKING_JPEG_QUALITY);
+    // 1MB를 넘으면 품질·크기를 조금씩 낮춘다(서버 앞단 업로드 한도 대비).
+    for (const f of WORKING_FALLBACKS) {
+      if (working.size <= WORKING_MAX_BYTES) break;
+      working = await encodeWorking(bitmap, f.side, f.quality);
+    }
 
     return {
       working,

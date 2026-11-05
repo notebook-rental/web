@@ -28,7 +28,10 @@ export interface CaptureState {
 export type CaptureAction =
   | { type: 'select'; code: string }
   | { type: 'processing'; code: string }
-  | { type: 'rejected'; code: string; reasons?: string[]; message?: string }
+  /** 폰 검사를 통과해 업로드를 뒤로 넘겼다. 기다리지 않고 다음 컷으로 넘어간다. */
+  | { type: 'captured'; code: string }
+  /** background: 뒤에서 올리다 실패했다. 다른 컷을 찍고 있으면 화면을 빼앗지 않는다. */
+  | { type: 'rejected'; code: string; reasons?: string[]; message?: string; background?: boolean }
   | { type: 'uploaded'; code: string; photoId: number }
   | { type: 'alreadyCaptured'; codes: string[] }
   | { type: 'missing'; codes: string[] }
@@ -63,10 +66,22 @@ export function captureReducer(state: CaptureState, action: CaptureAction): Capt
           message: undefined,
         })),
       };
+    case 'captured': {
+      const shots = update(state, action.code, (s) => ({ ...s, status: 'processing' as const }));
+      const selected =
+        state.selected === action.code ? (nextShot(shots, action.code) ?? state.selected) : state.selected;
+      return { shots, selected };
+    }
     case 'rejected':
       return {
         ...state,
-        selected: action.code,
+        selected:
+          action.background &&
+          state.selected !== null &&
+          state.selected !== action.code &&
+          !isFree(state, state.selected)
+            ? state.selected
+            : action.code,
         shots: update(state, action.code, (s) => ({
           ...s,
           status: 'rejected',
@@ -108,6 +123,12 @@ export function captureReducer(state: CaptureState, action: CaptureAction): Capt
         })),
       };
   }
+}
+
+/** 지금 보고 있는 컷이 이미 끝났거나 올리는 중이라 다른 컷으로 바꿔도 되는지 */
+function isFree(state: CaptureState, code: string): boolean {
+  const s = state.shots.find((x) => x.code === code);
+  return !s || s.status === 'done' || s.status === 'processing';
 }
 
 export function allDone(state: CaptureState): boolean {

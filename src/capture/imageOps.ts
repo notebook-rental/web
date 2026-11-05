@@ -8,6 +8,19 @@
 
 export const WORKING_MAX_SIDE = 2560;
 export const WORKING_JPEG_QUALITY = 0.9;
+/**
+ * 작업본 최대 크기. 서버 앞단 Nginx가 기본 설정(client_max_body_size 1m)이면 1MB를 넘는 요청을 끊는데,
+ * 아이폰 Safari는 이것을 응답 없이 "Load failed"로만 알린다. 그래서 1MB 아래로 맞춰 보낸다.
+ */
+export const WORKING_MAX_BYTES = 900 * 1024;
+/** 크기를 넘으면 차례로 시도할 (긴 변, 품질) */
+export const WORKING_FALLBACKS: { side: number; quality: number }[] = [
+  { side: 2560, quality: 0.8 },
+  { side: 2560, quality: 0.7 },
+  { side: 2048, quality: 0.75 },
+  { side: 2048, quality: 0.6 },
+  { side: 1600, quality: 0.6 },
+];
 /** 품질 검사용 축소 크기. 작게 줄여도 흐림·노출 판단에는 충분하다. */
 export const ANALYSIS_MAX_SIDE = 512;
 
