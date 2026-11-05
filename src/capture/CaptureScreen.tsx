@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type ChangeEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { ApiError } from '../api/client';
+import { ApiError, NETWORK_ERROR_CODE } from '../api/client';
 import { ResultCode } from '../api/resultCodes';
 import { subscribeInspectionEvents } from '../api/sse';
 import type { Inspection, InspectionKind, InspectionStatus } from '../api/types';
@@ -75,6 +75,7 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
   const [notice, setNotice] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>('capturing');
   const [held, setHeld] = useState<{ code: string; original: Blob; processed: ProcessedShot } | null>(null);
+  const [flash, setFlash] = useState(0);
   const isCheckin = request.kind === 'checkin';
 
   const processShot = useMemo(() => deps.processShot ?? createShotProcessor(), [deps.processShot]);
@@ -218,6 +219,14 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
         });
       } else if (e instanceof ApiError && e.resultCode === ResultCode.MULTIPLE_QR) {
         dispatch({ type: 'rejected', code, reasons: ['multiple_qr'] });
+      } else if (isNetworkFailure(e)) {
+        // 사진은 그대로 두고 다시 올릴 수 있게 한다(다시 찍지 않아도 된다).
+        setHeld({ code, original, processed });
+        dispatch({
+          type: 'rejected',
+          code,
+          message: '인터넷이 잠깐 끊겨 사진을 올리지 못했어요. "다시 올리기"를 눌러 주세요.',
+        });
       } else {
         dispatch({
           type: 'rejected',
@@ -234,8 +243,30 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
     const code = current.code;
     setHeld(null);
     dispatch({ type: 'processing', code });
+    let original: Blob;
     try {
-      const original = await (deps.captureStill ?? defaultCaptureStill)(video, camera.stream);
+      original = await (deps.captureStill ?? defaultCaptureStill)(video, camera.stream);
+    } catch (e) {
+      dispatch({ type: 'rejected', code, message: e instanceof Error ? e.message : '촬영에 실패했습니다.' });
+      return;
+    }
+    setFlash((n) => n + 1);
+    navigator.vibrate?.(30);
+    await handleOriginal(code, original);
+  }
+
+  /** 폰 카메라 앱으로 찍은 사진(선택 기능). 처리·업로드는 화면 안 카메라와 같다. */
+  async function pickFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !current || !inspection) return;
+    setHeld(null);
+    dispatch({ type: 'processing', code: current.code });
+    await handleOriginal(current.code, file);
+  }
+
+  async function handleOriginal(code: string, original: Blob) {
+    try {
       const processed = await processShot(original);
       if (processed.reasons.length > 0) {
         // 폰의 1차 검사에서 걸렸다. 다시 찍게 하되, 판단이 애매하면 서버에 맡길 수 있게 남겨 둔다.
@@ -303,19 +334,30 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
 
   return (
     <section className="screen screen--camera">
-      <CameraView ref={videoRef} stream={camera.stream} fit="contain">
-        <div className={`shot-overlay shot-overlay--${current?.code ?? 'none'}`} aria-hidden="true" />
-        {/* 팔을 들고 있을 때 아래 셔터까지 손이 가지 않아도 되게, 화면 어디를 눌러도 찍힌다 */}
-        {!allDone(state) && (
+      <div className="capture-view">
+        <CameraView ref={videoRef} stream={camera.stream} fit="contain">
+          <div className={`shot-overlay shot-overlay--${current?.code ?? 'none'}`} aria-hidden="true" />
+          {/* 팔을 들고 있을 때 아래 셔터까지 손이 가지 않아도 되게, 화면 어디를 눌러도 찍힌다 */}
+          {!allDone(state) && (
+            <button
+              type="button"
+              className="camera__tap"
+              onClick={shoot}
+              disabled={!inspection || !camera.stream || current?.status === 'processing'}
+              aria-label="화면을 눌러 찍기"
+            />
+          )}
+          {flash > 0 && <div key={flash} className="camera__flash" aria-hidden="true" />}
+        </CameraView>
+        <div className="shot-title">
           <button
             type="button"
-            className="camera__tap"
-            onClick={shoot}
-            disabled={!inspection || !camera.stream || current?.status === 'processing'}
-            aria-label="화면을 눌러 찍기"
-          />
-        )}
-        <div className="shot-title">
+            className="shot-title__close"
+            onClick={() => navigate(-1)}
+            aria-label="촬영 나가기"
+          >
+            <Icon name="arrow" size={20} />
+          </button>
           <span>
             {KIND_TITLE[request.kind]} · {doneCount}/{state.shots.length}
             {request.deviceLabel ? ` · ${request.deviceLabel}` : ''}
@@ -324,7 +366,7 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
             <span style={{ width: `${(doneCount / Math.max(1, state.shots.length)) * 100}%` }} />
           </span>
         </div>
-      </CameraView>
+      </div>
       <div className="panel panel--sheet">
         {camera.error && (
           <p className="alert alert--error" role="alert">
@@ -337,6 +379,7 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
             <strong>{guide.name}</strong>
             {guide.open && <span className="badge">노트북 열기</span>}
             <p>{guide.guide}</p>
+            <p className="hint--portrait">폰을 가로로 돌리면 더 가까이서 찍을 수 있어요.</p>
           </div>
         )}
         {current?.status === 'rejected' && (
@@ -355,7 +398,7 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
                   void upload(h.code, h.original, h.processed);
                 }}
               >
-                그래도 올리기(서버가 다시 판단)
+                {current.reasons?.length ? '그래도 올리기(서버가 다시 판단)' : '다시 올리기'}
               </button>
             )}
           </div>
@@ -393,15 +436,32 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
               {phase === 'submitting' ? '제출 중…' : '촬영 제출'}
             </button>
           ) : (
-            <button
-              type="button"
-              className="btn btn--shutter"
-              onClick={shoot}
-              disabled={!inspection || !camera.stream || current?.status === 'processing'}
-              aria-label={`${guide?.name ?? ''} 촬영하기`}
-            >
-              {current?.status === 'processing' ? '처리 중…' : '찍기'}
-            </button>
+            <>
+              <span className="actions__side" aria-hidden="true" />
+              <button
+                type="button"
+                className="btn btn--shutter"
+                onClick={shoot}
+                disabled={!inspection || !camera.stream || current?.status === 'processing'}
+                aria-label={`${guide?.name ?? ''} 촬영하기`}
+              >
+                {current?.status === 'processing' ? '처리 중…' : '찍기'}
+              </button>
+              {/* 선택 기능: 폰의 카메라 앱으로 찍는다(줌·초점을 기본 카메라로 맞추고 싶을 때) */}
+              <label className={`actions__side btn btn--ghost btn--sm${!inspection ? ' is-disabled' : ''}`}>
+                <Icon name="camera" size={18} />
+                폰 카메라
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="visually-hidden"
+                  aria-label={`${guide?.name ?? ''} 폰 카메라 앱으로 찍기`}
+                  disabled={!inspection || current?.status === 'processing'}
+                  onChange={(e) => void pickFile(e)}
+                />
+              </label>
+            </>
           )}
         </div>
         {pendingOriginals.length > 0 && (
@@ -425,6 +485,14 @@ function chipText(s: ShotState, isCheckin: boolean): string {
 }
 
 /** 한 줄로 넘겨 보는 컷 목록에서 지금 찍을 컷이 보이게 한다. */
+function isNetworkFailure(e: unknown): boolean {
+  if (e instanceof ApiError) return e.resultCode === NETWORK_ERROR_CODE;
+  // Safari는 fetch가 끊기면 "Load failed", Chrome은 "Failed to fetch"라고만 한다.
+  return (
+    e instanceof TypeError || (e instanceof Error && /load failed|failed to fetch|network/i.test(e.message))
+  );
+}
+
 function scrollIntoViewIfNeeded(el: HTMLElement | null) {
   el?.scrollIntoView?.({ block: 'nearest', inline: 'center', behavior: 'smooth' });
 }

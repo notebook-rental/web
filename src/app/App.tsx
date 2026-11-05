@@ -40,7 +40,7 @@ function Layout() {
   // 카메라를 쓰는 화면은 어두운 배경으로 꽉 채운다.
   const camera = pathname === '/' || pathname === '/capture';
   return (
-    <div className={camera ? 'app app--camera' : 'app'}>
+    <div className={`app${camera ? ' app--camera' : ''}${pathname === '/capture' ? ' app--capture' : ''}`}>
       <header className="topbar">
         <Link to="/" className="brand" aria-label="반납 검사 홈">
           <span className="brand__mark" aria-hidden="true">

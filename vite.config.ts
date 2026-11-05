@@ -19,7 +19,8 @@ export default defineConfig({
         lang: 'ko',
         start_url: '/',
         display: 'standalone',
-        orientation: 'portrait',
+        // 촬영할 때 폰을 가로로 들 수 있게 방향을 막지 않는다.
+        orientation: 'any',
         background_color: '#111827',
         theme_color: '#111827',
         icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],

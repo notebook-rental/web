@@ -7,8 +7,9 @@ export const VIDEO_CONSTRAINTS: MediaStreamConstraints = {
     // 폰 카메라 센서는 대부분 4:3이다. 16:9로 받으면 위아래(세로로 들면 좌우)가 잘려 화각이 25% 좁아지고,
     // 그만큼 폰을 높이 들어야 노트북 전체가 들어온다.
     aspectRatio: { ideal: 4 / 3 },
-    width: { ideal: 4032 },
-    height: { ideal: 3024 },
+    // 8MP면 충분하다(작업본은 2560px). 12MP로 받으면 iPhone에서 사진 처리 중 메모리가 모자랄 수 있다.
+    width: { ideal: 3264 },
+    height: { ideal: 2448 },
   },
 };
 
