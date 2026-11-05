@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useServices } from '../app/services';
-import { memoryKvStore, openKvStore } from './kvStore';
+import { ApiError } from '../api/client';
+import { memoryKvStore, openKvStore, resilientKvStore } from './kvStore';
 import { OriginalUploadQueue, putToSignedUrl, type PendingOriginal, type QueueSnapshot } from './uploadQueue';
 
 interface QueueContextValue {
@@ -24,9 +25,20 @@ export function UploadQueueProvider({
       new OriginalUploadQueue({
         store:
           typeof indexedDB !== 'undefined'
-            ? openKvStore<PendingOriginal>('notebook-rental', 'originals')
+            ? resilientKvStore(openKvStore<PendingOriginal>('notebook-rental', 'originals'))
             : memoryKvStore<PendingOriginal>(),
-        put: (url, blob) => putToSignedUrl(url, blob),
+        // 원본은 서버를 거쳐 올린다. 폰에서 저장소(MinIO) 주소로 바로 PUT하면 주소·CORS·HTTPS 설정에 따라
+        // 막힐 수 있어서다. 서버가 아직 이 기능을 모르면(404·405) 예전처럼 서명 URL로 올린다.
+        put: async (url, blob, item) => {
+          try {
+            await endpoints.uploadOriginal(item.inspectionId, item.photoId, blob);
+            return new Response(null, { status: 200 });
+          } catch (e) {
+            if (e instanceof ApiError && (e.status === 404 || e.status === 405))
+              return putToSignedUrl(url, blob);
+            throw e;
+          }
+        },
         confirm: (inspectionId, photoId) => endpoints.confirmOriginal(inspectionId, photoId),
       }),
     [injected, endpoints],

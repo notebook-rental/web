@@ -53,7 +53,7 @@ const KIND_TITLE: Record<InspectionKind, string> = {
   register: '기준 사진 촬영',
 };
 
-type Phase = 'capturing' | 'submitting' | 'analyzing' | 'reviewing' | 'done';
+type Phase = 'capturing' | 'uploadingOriginals' | 'submitting' | 'analyzing' | 'reviewing' | 'done';
 
 const TOP_SHOT = 'top';
 
@@ -316,12 +316,32 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
     }
   }
 
+  /** 이 검사의 원본이 다 올라갈 때까지 기다린다. 실패로 멈춘 것은 다시 시도한다. 남은 장 수를 돌려준다. */
+  async function flushOriginals(id: number): Promise<number> {
+    const left = async () => (await queue.snapshot(id)).pending + (await queue.snapshot(id)).failed;
+    if ((await left()) === 0) return 0;
+    setPhase('uploadingOriginals');
+    await queue.retryFailed();
+    return left();
+  }
+
   async function submit() {
     if (!inspection) return;
-    setPhase('submitting');
     setNotice(null);
     try {
-      await endpoints.submitInspection(inspection.id);
+      // 원본이 남았으면 먼저 다 올린다(서버는 원본이 다 와야 제출을 받는다).
+      if ((await flushOriginals(inspection.id)) > 0) throw originalsLeft(await queue.snapshot(inspection.id));
+      setPhase('submitting');
+      try {
+        await endpoints.submitInspection(inspection.id);
+      } catch (e) {
+        if (!(e instanceof ApiError && e.resultCode === ResultCode.ORIGINALS_PENDING)) throw e;
+        // 서버 기록과 폰이 어긋난 경우: 한 번 더 올려 보고 다시 제출한다.
+        if ((await flushOriginals(inspection.id)) > 0)
+          throw originalsLeft(await queue.snapshot(inspection.id));
+        setPhase('submitting');
+        await endpoints.submitInspection(inspection.id);
+      }
       setPhase(isCheckin ? 'analyzing' : 'done');
       if (isCheckin) endpoints.getInspection(inspection.id).then(applyInspection, () => undefined);
     } catch (e) {
@@ -351,7 +371,7 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
     );
   }
 
-  if (phase !== 'capturing' && phase !== 'submitting') {
+  if (phase !== 'capturing' && phase !== 'submitting' && phase !== 'uploadingOriginals') {
     return (
       <SubmittedView
         kind={request.kind}
@@ -485,10 +505,14 @@ function CaptureFlow({ request, deps }: { request: CaptureRequest; deps: Capture
               type="button"
               className="btn btn--primary"
               onClick={submit}
-              disabled={phase === 'submitting'}
+              disabled={phase === 'submitting' || phase === 'uploadingOriginals'}
             >
               <Icon name="upload" size={20} />
-              {phase === 'submitting' ? '제출 중…' : '촬영 제출'}
+              {phase === 'uploadingOriginals'
+                ? `원본 올리는 중… (남은 ${pendingOriginals.length}장)`
+                : phase === 'submitting'
+                  ? '제출 중…'
+                  : '촬영 제출'}
             </button>
           ) : (
             <>
@@ -545,6 +569,13 @@ function isNetworkFailure(e: unknown): boolean {
   // Safari는 fetch가 끊기면 "Load failed", Chrome은 "Failed to fetch"라고만 한다.
   return (
     e instanceof TypeError || (e instanceof Error && /load failed|failed to fetch|network/i.test(e.message))
+  );
+}
+
+function originalsLeft(s: { failed: number; pending: number; items: { lastError?: string }[] }): Error {
+  const why = s.items.find((i) => i.lastError)?.lastError;
+  return new Error(
+    `원본 사진 ${s.pending + s.failed}장을 아직 올리지 못했어요. 인터넷을 확인하고 "촬영 제출"을 다시 눌러 주세요.${why ? ` (${why})` : ''}`,
   );
 }
 

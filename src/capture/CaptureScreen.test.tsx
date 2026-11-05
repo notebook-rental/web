@@ -113,7 +113,9 @@ describe('CaptureScreen', () => {
     expect(form.get('shotType')).toBe('top');
     expect(form.get('originalSha256')).toBe('f'.repeat(64));
     expect(form.get('decodedQrValues')).toBe(QR);
-    await waitFor(() => expect(put).toHaveBeenCalledWith('https://s3/put', expect.any(Blob)));
+    await waitFor(() =>
+      expect(put).toHaveBeenCalledWith('https://s3/put', expect.any(Blob), expect.anything()),
+    );
     await waitFor(() => expect(confirm).toHaveBeenCalledWith(1, 101));
 
     // 다음 컷(하판)으로 자동으로 넘어갔다.
@@ -409,7 +411,7 @@ describe('CaptureScreen', () => {
     expect(readLocation(container).path).toBe('/review/1');
   });
 
-  it('반납 제출 후 분석 중이면 기다리는 화면, 원본 업로드 실패를 다시 시도할 수 있다', async () => {
+  it('원본이 남았으면 먼저 올리고 제출한다. 못 올리면 제출하지 않고 이유를 알려 준다', async () => {
     const put = vi.fn(async () => new Response(null, { status: 403 }));
     const server = createFakeServer()
       .on('POST', '/inspections', ok(inspection({ kind: 'checkin', requiredShots: ['top'] }), 201))
@@ -444,14 +446,17 @@ describe('CaptureScreen', () => {
       },
     );
     fireEvent.click(await shutter());
+    // 원본이 안 올라가면 제출하지 않고, 이유와 함께 다시 누르라고 알려 준다(서버는 원본이 다 와야 제출을 받는다).
     fireEvent.click(await screen.findByRole('button', { name: '촬영 제출' }));
+    expect(await screen.findByText(/원본 사진 1장을 아직 올리지 못했어요.*HTTP 403/)).toBeInTheDocument();
+    expect(server.callsTo('POST', '/inspections/1/submit')).toHaveLength(0);
+    // 인터넷이 돌아오면 제출을 다시 누를 때 원본부터 올리고 제출한다.
+    put.mockResolvedValue(new Response(null, { status: 200 }));
+    fireEvent.click(screen.getByRole('button', { name: '촬영 제출' }));
     expect(await screen.findByText('비교 중…')).toBeInTheDocument();
-    expect(await screen.findByText(/원본 1장 업로드 남음 \(실패 1\)/)).toBeInTheDocument();
     const list = screen.getByRole('list');
     expect(within(list).getByText('상판')).toBeInTheDocument();
-    put.mockResolvedValue(new Response(null, { status: 200 }));
-    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
-    await waitFor(() => expect(screen.queryByText(/업로드 남음/)).toBeNull());
+    expect(screen.queryByText(/업로드 남음/)).toBeNull();
   });
 
   it('후보가 없으면 변화 없음으로 요약한다', async () => {

@@ -26,7 +26,7 @@ export interface PendingOriginal {
 
 export interface QueueDeps {
   store: KvStore<PendingOriginal>;
-  put(url: string, blob: Blob): Promise<Response>;
+  put(url: string, blob: Blob, item: PendingOriginal): Promise<Response>;
   confirm(inspectionId: number, photoId: number): Promise<unknown>;
   sleep?(ms: number): Promise<void>;
   maxAttempts?: number;
@@ -96,25 +96,33 @@ export class OriginalUploadQueue {
   }
 
   drain(): Promise<void> {
+    // 이미 도는 중에 새 항목이 들어오면, 도는 쪽이 목록을 다시 읽게 표시해 둔다(빠뜨리지 않게).
+    if (this.draining) this.again = true;
     this.draining ??= this.run().finally(() => {
       this.draining = null;
     });
     return this.draining;
   }
 
+  private again = false;
+
   private async run(): Promise<void> {
     for (;;) {
+      this.again = false;
       const next = (await this.deps.store.values()).find((i) => !i.failed);
-      if (!next) return;
-      await this.process(next);
-      await this.emit();
+      if (next) {
+        await this.process(next);
+        await this.emit();
+      } else if (!this.again) {
+        return;
+      }
     }
   }
 
   private async process(item: PendingOriginal): Promise<void> {
     try {
       if (!item.uploaded) {
-        const res = await this.deps.put(item.uploadUrl, item.blob);
+        const res = await this.deps.put(item.uploadUrl, item.blob, item);
         if (!res.ok) throw new Error(`원본 업로드 실패 (HTTP ${res.status})`);
         item = { ...item, uploaded: true };
         await this.deps.store.put(item.key, item);
